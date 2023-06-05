@@ -1,0 +1,62 @@
+/* NOTE: When programming using XGPRO/MINIPRO make sure
+ *       to specify ATF22V10C(UES). The "UES" is important.
+ *
+ */
+
+name addr;
+device g22v10;
+partno x;
+date 1/1/1980;
+designer smbaker;
+company sbsoftware;
+revision 1;
+assembly x;
+location x;
+
+PIN 1 = !MREQ;
+PIN 2 = !M1;
+PIN 3 = !RD; 
+PIN 4 = !WR;
+PIN 5 = A6;
+PIN 6 = A7;
+PIN 7 = A14;
+PIN 8 = A15;
+PIN 9 = !IORQ;
+PIN 10 = NC0;
+PIN 11 = NC1;
+PIN 12 = GND;
+PIN 13 = NC2;
+PIN 14 = !LED4;
+PIN 15 = !LED5;
+PIN 16 = !MW;
+PIN 17 = !MR;
+PIN 18 = !IOW;
+PIN 19 = !IOR;
+PIN 20 = !RAMCS;
+PIN 21 = !ROMCS;
+PIN 22 = !BBCS;
+PIN 23 = !SERCS;
+
+SERCS = A7 & (!A6);  /* 0x80 through 0xBF */
+BBCS = (!A7) & (!A6);  /* 0x00 through 0x3F */
+
+IOR = RD & IORQ & (!M1);
+IOW = WR & IORQ & (!M1);
+
+MR = RD & MREQ;
+MW = WR & MREQ;
+
+ROMCS = !A15;
+RAMCS = A15;
+
+LEDSEL = (!A7) & A6; /* 0x40 through 0x7F */
+
+/* Turn LED5 on when there's a write to LEDSEL.
+ * Turn LED5 off when there's a read of LEDSEL.
+ */
+
+LED5 = (LEDSEL & IOW) # (LED5 & !(LEDSEL & IOR));
+
+/* Light LED4 during bubble IO */
+
+LED4 = (IOW # IOR) & BBCS;
