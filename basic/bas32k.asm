@@ -35,6 +35,14 @@
 ;==============================================================================
 
 
+; LINKS TO BUBBLE LIBRARY
+
+        EXTERN  BBLREAD
+        EXTERN  BBLWRIT
+        EXTERN  BBLINIT
+        EXTERN  BARL
+        EXTERN  BARH
+
 ; GENERAL EQUATES
 
         DEFC    CTRLC   =   03H         ; Control "C"
@@ -55,7 +63,8 @@
 
         PUBLIC WRKSPC                   ; Start of BASIC RAM
 
-        DEFC    WRKSPC  =   8200H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
+        DEFC    WRKSPC  =   8300H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
+                                        ; XXX smbaker 8200-82FF reserved for bubble state
         DEFC    USR     =   WRKSPC+003H ; "USR (x)" jump
         DEFC    OUTSUB  =   WRKSPC+006H ; "OUT p,n"
         DEFC    OTPORT  =   WRKSPC+007H ; Port (p)
@@ -160,7 +169,13 @@ CSTART: LD      HL,WRKSPC       ; Start of workspace RAM
         XOR     A               ; Clear break flag
         LD      (BRKFLG),A
 
-INIT:   LD      HL,INITAB       ; Initialise workspace
+INIT:   LD      HL,BB1MSG      ; Point to message
+        CALL    PRS
+        CALL    BBLINIT
+        LD      HL,BB2MSG      ; Point to message
+        CALL    PRS
+
+        LD      HL,INITAB       ; Initialise workspace
         LD      BC,INITBE-INITAB+3  ; Bytes to copy
         LD      DE,WRKSPC       ; Into workspace RAM
         LDIR                    ; Copy
@@ -240,6 +255,10 @@ SIGNON: DEFB    "Z80 BASIC Ver 4.7c",CR,LF
 
 MEMMSG: DEFB    "Memory top",0
 
+BB1MSG: DEFB    "Initializing Bubble Controller",CR,LF,0,0
+
+BB2MSG: DEFB    "Bubble Controller Initialized",CR,LF,0,0
+
 ; FUNCTION ADDRESS TABLE
 
 FNCTAB: DEFW    SGN
@@ -306,7 +325,10 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'L'+80H,"IST"   ; A0h
         DEFB    'C'+80H,"LEAR"
         DEFB    'H'+80H,"LOAD"
-        DEFB    'N'+80H,"EW"
+        DEFB    'B'+80H,"LOAD"
+        DEFB    'B'+80H,"SAVE"
+        DEFB    'B'+80H,"TEST"
+        DEFB    'N'+80H,"EW"    ; A6h
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -321,7 +343,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    '-'+80H
         DEFB    '*'+80H
         DEFB    '/'+80H
-        DEFB    '^'+80H        ; B0h
+        DEFB    '^'+80H        ; B3h
         DEFB    'A'+80H,"ND"
         DEFB    'O'+80H,"R"
         DEFB    '>'+80H
@@ -338,7 +360,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'S'+80H,"QR"
         DEFB    'R'+80H,"ND"
         DEFB    'L'+80H,"OG"
-        DEFB    'E'+80H,"XP"    ; C0h
+        DEFB    'E'+80H,"XP"    ; C3h
         DEFB    'C'+80H,"OS"
         DEFB    'S'+80H,"IN"
         DEFB    'T'+80H,"AN"
@@ -393,6 +415,9 @@ WORDTB: DEFW    PEND
         DEFW    LIST
         DEFW    CLEAR
         DEFW    HLOAD
+        DEFW    BLOAD
+        DEFW    BSAVE
+        DEFW    BTEST
         DEFW    NEW
 
 ; RESERVED WORD TOKEN VALUES
@@ -404,27 +429,27 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0A3H        ; NEW
+        DEFC    ZNEW    =   0A6H        ; NEW
 
-        DEFC    ZTAB    =   0A4H        ; TAB
-        DEFC    ZTO     =   0A5H        ; TO
-        DEFC    ZFN     =   0A6H        ; FN
-        DEFC    ZSPC    =   0A7H        ; SPC
-        DEFC    ZTHEN   =   0A8H        ; THEN
-        DEFC    ZNOT    =   0A9H        ; NOT
-        DEFC    ZSTEP   =   0AAH        ; STEP
+        DEFC    ZTAB    =   0A7H        ; TAB
+        DEFC    ZTO     =   0A8H        ; TO
+        DEFC    ZFN     =   0A9H        ; FN
+        DEFC    ZSPC    =   0AAH        ; SPC
+        DEFC    ZTHEN   =   0ABH        ; THEN
+        DEFC    ZNOT    =   0ACH        ; NOT
+        DEFC    ZSTEP   =   0ADH        ; STEP
 
-        DEFC    ZAMP    =   0ABH        ; &
-        DEFC    ZPLUS   =   0ACH        ; +
-        DEFC    ZMINUS  =   0ADH        ; -
-        DEFC    ZTIMES  =   0AEH        ; *
-        DEFC    ZDIV    =   0AFH        ; /
-        DEFC    ZOR     =   0B2H        ; OR
-        DEFC    ZGTR    =   0B3H        ; >
-        DEFC    ZEQUAL  =   0B4H        ; =
-        DEFC    ZLTH    =   0B5H        ; <
-        DEFC    ZSGN    =   0B6H        ; SGN
-        DEFC    ZLEFT   =   0CDH        ; LEFT$
+        DEFC    ZAMP    =   0AEH        ; &
+        DEFC    ZPLUS   =   0AFH        ; +
+        DEFC    ZMINUS  =   0B0H        ; -
+        DEFC    ZTIMES  =   0B1H        ; *
+        DEFC    ZDIV    =   0B2H        ; /
+        DEFC    ZOR     =   0B5H        ; OR
+        DEFC    ZGTR    =   0B6H        ; >
+        DEFC    ZEQUAL  =   0B7H        ; =
+        DEFC    ZLTH    =   0B8H        ; <
+        DEFC    ZSGN    =   0B9H        ; SGN
+        DEFC    ZLEFT   =   0D0H        ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -4474,6 +4499,42 @@ HEXIT:  EX      DE,HL           ; Value into DE, Code string into HL
         CALL    ACPASS          ; ACPASS to set AC as integer into FPREG
         POP     HL
         RET
+
+BLOAD:  PUSH    HL
+        CALL    GETINT          ; Get program number into A
+        ; 	BARL <- LSB OF BUBBLE ADDRESS
+        ; 	BARH <- MSB OF BUBBLE ADDRESS
+        ; 	HL <- NUMBER OF BYTES TO TRANSFER
+        ; 	DE <- STARTING RAM ADDRESS OF DESTINATION
+        RLCA                    ; multiply program number by 2
+        LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
+        LD      A,0
+        LD      (BARL),A        ; bubble lower address is 0
+        LD      HL, 04000H      ; load 16K
+        LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLREAD
+        CALL    SETPTR
+        POP     HL
+        RET
+
+BSAVE:  PUSH    HL
+        CALL    GETINT          ; Get program number into A
+        ; 	BARL <- LSB OF BUBBLE ADDRESS
+        ; 	BARH <- MSB OF BUBBLE ADDRESS
+        ; 	HL <- NUMBER OF BYTES TO TRANSFER
+        ; 	DE <- STARTING RAM ADDRESS OF SOURCE
+        RLCA                    ; multiply program number by 2
+        LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
+        LD      A,0
+        LD      (BARL),A        ; bubble lower address is 0
+        LD      HL, 04000H      ; save 16K
+        LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLWRIT
+        CALL    SETPTR
+        POP     HL
+        RET
+
+BTEST:  RET
 
 END:
 

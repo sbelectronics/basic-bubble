@@ -38,4 +38,10 @@ ORG         $0148
 SECTION     init_strings
 ORG         $01F0
 
+SECTION     bubble_lib
+ORG         $2200
+
+SECTION     bubble_vars
+ORG         $8200
+
 ;==============================================================================

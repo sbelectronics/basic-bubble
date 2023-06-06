@@ -2,3 +2,4 @@ board_map.asm
 page0.asm
 intsio.asm
 bas32k.asm
+bblbas.asm
