@@ -169,20 +169,26 @@ CSTART: LD      HL,WRKSPC       ; Start of workspace RAM
         XOR     A               ; Clear break flag
         LD      (BRKFLG),A
 
-INIT:   LD      HL,BB1MSG      ; Point to message
-        CALL    PRS
-        CALL    BBLINIT
-        LD      HL,BB2MSG      ; Point to message
-        CALL    PRS
-
-        LD      HL,INITAB       ; Initialise workspace
+INIT:   LD      HL,INITAB       ; Initialise workspace
         LD      BC,INITBE-INITAB+3  ; Bytes to copy
         LD      DE,WRKSPC       ; Into workspace RAM
         LDIR                    ; Copy
         EX      DE,HL           ; End of copy destination to HL
         LD      SP,HL           ; Temporary stack
+
         CALL    CLREG           ; Clear registers and stack
         CALL    PRNTCRLF        ; Output CRLF
+
+        CALL    BBLINIT
+        CPI     040H
+        JZ      BGOOD
+        LD      HL,MBBAD        ; Point to message
+        CALL    PSHEXA
+        JMP     BDONE
+BGOOD:  LD      HL,MBGOOD
+        CALL    PRS
+BDONE:
+
         LD      (BUFFER+72+1),A ; Mark end of buffer
         LD      (PROGST),A      ; Initialise program area
 MSIZE:  LD      HL,MEMMSG       ; Point to message
@@ -255,9 +261,9 @@ SIGNON: DEFB    "Z80 BASIC Ver 4.7c",CR,LF
 
 MEMMSG: DEFB    "Memory top",0
 
-BB1MSG: DEFB    "Initializing Bubble Controller",CR,LF,0,0
+MBBAD:  DEFB    "Bubble Trouble! Error: ",0,0
 
-BB2MSG: DEFB    "Bubble Controller Initialized",CR,LF,0,0
+MBGOOD: DEFB    "Bubble Initialization Success!",CR,LF,0,0
 
 ; FUNCTION ADDRESS TABLE
 
@@ -4535,6 +4541,36 @@ BSAVE:  PUSH    HL
         RET
 
 BTEST:  RET
+                                ; Print string, hex value in A, and CRLF
+PSHEXA: PUSH    PSW             ; save A
+        CALL    PRS             ; print string
+        POP     PSW             ; restore A
+        CALL    PHEXA           ; print hex value of A
+        JMP     PCRLF           ; jump out via print CRLF
+
+                                ; Print hex value in A
+PHEXA:	PUSH	PSW
+	RLC
+	RLC
+	RLC
+	RLC
+	CALL	PHEXA0
+	POP	PSW
+PHEXA0:	ANI	00FH
+	ADI	090H
+	DAA
+	ACI	040H
+	DAA
+        CALL    OUTC
+	RET
+                                ; Print CRLF
+PCRLF:  PUSH    PSW
+        MVI     A,00DH
+        CALL    OUTC
+        MVI     A,00AH
+        CALL    OUTC
+        POP     PSW
+        RET
 
 END:
 
