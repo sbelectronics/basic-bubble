@@ -39,7 +39,7 @@ SECTION     init_strings
 ORG         $01F0
 
 SECTION     bubble_lib
-ORG         $2200
+ORG         $2400
 
 SECTION     bubble_vars
 ORG         $8200

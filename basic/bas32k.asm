@@ -68,8 +68,29 @@
 
         PUBLIC WRKSPC                   ; Start of BASIC RAM
 
+        ; XXX smbaker 8200-823f reserved for bubble state in bblbas.asm
+
+        ; XXX smbaker 8240-827f are my own temporaries
+        DEFC    BLDRUN   =  8240H       ; Used by BLOAD internally to signal auto run
+
+        DEFC    SETTINGS =  8280H       ; XXX smbaker settings area for bubble memory, starts at 8280. 
+
+        DEFC    BBLMAG1  =  SETTINGS
+        DEFC    BBLMAG2  =  SETTINGS+001H
+        DEFC    BBLMAG3  =  SETTINGS+002H
+        DEFC    BBLMAG4  =  SETTINGS+003H
+        DEFC    BBLVER   =  SETTINGS+004H
+        DEFC    BBLAUTO  =  SETTINGS+005H    ; 0-3 = autorun program; 0xFF = no autorun
+
+        DEFC    DEFAUTO  =  0FFH        ; Default BBLAUTO = 0xFF
+        DEFC    DEFMAG1  =  0FEH
+        DEFC    DEFMAG2  =  0EDH
+        DEFC    DEFMAG3  =  0FAH
+        DEFC    DEFMAG4  =  0CEH
+        DEFC    DEFVER   =  001H
+
         DEFC    WRKSPC  =   8300H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
-                                        ; XXX smbaker 8200-82FF reserved for bubble state
+                                        
         DEFC    USR     =   WRKSPC+003H ; "USR (x)" jump
         DEFC    OUTSUB  =   WRKSPC+006H ; "OUT p,n"
         DEFC    OTPORT  =   WRKSPC+007H ; Port (p)
@@ -250,6 +271,14 @@ SETTOP: DEC     HL              ; Back one byte
         LD      HL,BFREE        ; " Bytes free" message
         CALL    PRS             ; Output string
 
+        LD      SP,STACK        ; Temporary stack
+        CALL    CLREG           ; Clear registers and stack
+        LD      A,(BBLAUTO)
+        CP      A,0FFH          ; Auto load and run?
+        JZ      PRNTOK          ; Nope.
+        OR      A,080H          ; Set the autorun bit
+        CALL    BLOADA          ; Load and run from the bubble
+
 WARMST: LD      SP,STACK        ; Temporary stack
 BRKRET: CALL    CLREG           ; Clear registers and stack
         JP      PRNTOK          ; Go to get command line
@@ -337,9 +366,11 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'B'+80H,"SAVE"
         DEFB    'B'+80H,"TEST"
         DEFB    'B'+80H,"INIT"
+        DEFB    'B'+80H,"AUTO"
+        DEFB    'B'+80H,"NOAUTO"
         DEFB    'L'+80H,"EDON"
         DEFB    'L'+80H,"EDOFF"
-        DEFB    'N'+80H,"EW"    ; A9h
+        DEFB    'N'+80H,"EW"    ; AAh
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -354,7 +385,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    '-'+80H
         DEFB    '*'+80H
         DEFB    '/'+80H
-        DEFB    '^'+80H        ; B5h
+        DEFB    '^'+80H        ; B7h
         DEFB    'A'+80H,"ND"
         DEFB    'O'+80H,"R"
         DEFB    '>'+80H
@@ -371,7 +402,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'S'+80H,"QR"
         DEFB    'R'+80H,"ND"
         DEFB    'L'+80H,"OG"
-        DEFB    'E'+80H,"XP"    ; C5h
+        DEFB    'E'+80H,"XP"    ; C7h
         DEFB    'C'+80H,"OS"
         DEFB    'S'+80H,"IN"
         DEFB    'T'+80H,"AN"
@@ -430,6 +461,8 @@ WORDTB: DEFW    PEND
         DEFW    BSAVE
         DEFW    BTEST
         DEFW    BINIT
+        DEFW    BAUTO
+        DEFW    BNOAUT
         DEFW    LEDON
         DEFW    LEDOFF
         DEFW    NEW
@@ -443,27 +476,27 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0A9H        ; NEW
+        DEFC    ZNEW    =   0ABH        ; NEW
 
-        DEFC    ZTAB    =   0AAH        ; TAB
-        DEFC    ZTO     =   0ABH        ; TO
-        DEFC    ZFN     =   0ACH        ; FN
-        DEFC    ZSPC    =   0ADH        ; SPC
-        DEFC    ZTHEN   =   0AEH        ; THEN
-        DEFC    ZNOT    =   0AFH        ; NOT
-        DEFC    ZSTEP   =   0B0H        ; STEP
+        DEFC    ZTAB    =   0ACH        ; TAB
+        DEFC    ZTO     =   0ADH        ; TO
+        DEFC    ZFN     =   0AEH        ; FN
+        DEFC    ZSPC    =   0AFH        ; SPC
+        DEFC    ZTHEN   =   0B0H        ; THEN
+        DEFC    ZNOT    =   0B1H        ; NOT
+        DEFC    ZSTEP   =   0B2H        ; STEP
 
-        DEFC    ZAMP    =   0B1H        ; &
-        DEFC    ZPLUS   =   0B2H        ; +
-        DEFC    ZMINUS  =   0B3H        ; -
-        DEFC    ZTIMES  =   0B4H        ; *
-        DEFC    ZDIV    =   0B5H        ; /
-        DEFC    ZOR     =   0B8H        ; OR
-        DEFC    ZGTR    =   0B9H        ; >
-        DEFC    ZEQUAL  =   0BAH        ; =
-        DEFC    ZLTH    =   0BBH        ; <
-        DEFC    ZSGN    =   0BCH        ; SGN
-        DEFC    ZLEFT   =   0D3H        ; LEFT$
+        DEFC    ZAMP    =   0B3H        ; &
+        DEFC    ZPLUS   =   0B4H        ; +
+        DEFC    ZMINUS  =   0B5H        ; -
+        DEFC    ZTIMES  =   0B6H        ; *
+        DEFC    ZDIV    =   0B7H        ; /
+        DEFC    ZOR     =   0BAH        ; OR
+        DEFC    ZGTR    =   0BBH        ; >
+        DEFC    ZEQUAL  =   0BCH        ; =
+        DEFC    ZLTH    =   0BDH        ; <
+        DEFC    ZSGN    =   0BEH        ; SGN
+        DEFC    ZLEFT   =   0D5H        ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -763,7 +796,7 @@ FNDEND: CP      (HL)            ; Found end of line?
         LD      (HL),E          ; Save LSB of pointer
         INC     HL
         LD      (HL),D          ; Save MSB of pointer
-        JP      PTRLP           ; Do next line
+        JP      PTRLP           ; Do next line      
 
 SRCHLN: LD      HL,(BASTXT)     ; Start of program text
 SRCHLP: LD      BC,HL           ; BC = Address to look at
@@ -966,6 +999,21 @@ DELCHR: CALL    OUTC            ; Output character in A
 OTKLN:  CALL    OUTC            ; Output character in A
 KILIN:  CALL    PRNTCRLF        ; Output CRLF
         JP      RINPUT          ; Get line again
+
+TTYRUN: LD      HL,BUFFER       ; Returns the "Run" command. Use by Load+Run
+        LD      (HL),'R'
+        INC     HL
+        LD      (HL),'U'
+        INC     HL
+        LD      (HL),'N'
+        INC     HL
+        LD      (HL),0
+        LD      B,4
+        LD      HL,TTYLIN
+        LD      (RINPUT+1),HL
+        LD      HL,BUFFER-1
+        OR      A               ; clear carry
+        RET
 
 TTYLIN: LD      HL,BUFFER       ; Get a line by character
         LD      B,1             ; Set buffer as empty
@@ -4527,6 +4575,8 @@ HEXIT:  EX      DE,HL           ; Value into DE, Code string into HL
 
 BLOAD:  CALL    GETINT          ; Get program number into A
         RET     NZ
+BLOADA: LD      (BLDRUN),A      ; Save 'A', including the autorun bit
+        AND     A,07FH          ; Strip off the autorun bit
         CP      A,4
         JP      NC,OVERR        ; Only programs 0-3 are allowed
         ; 	BARL <- LSB OF BUBBLE ADDRESS
@@ -4554,8 +4604,17 @@ BLOAD:  CALL    GETINT          ; Get program number into A
         LD      DE, PROGND+04000H      ; Start right after the last block we wrote
         CALL    BBLREAD         ; Read the second page
 
-        CALL    PRNTOK          ; Printing OK before SetPTR is what nascom basic does
-        JP      SETPTR
+        LD      A,(BLDRUN)      ; Check autorun flag
+        AND     A,080H
+        JP      Z,BLOAD2        ; not set -- don't autorun
+
+        LD      HL,TTYRUN       ; replace RINPUT with one that loads "RUN<null>"
+        LD      (RINPUT+1),HL
+        JP      SETPTR          ; Set pointers and return
+
+BLOAD2: CALL    PRNTOK          ; Printing OK before SetPTR is what nascom basic does
+        JP      SETPTR          ; Set pointers and return
+        
 
 BSAVE:  CALL    GETINT          ; Get program number into A
         RET     NZ
@@ -4584,6 +4643,77 @@ BSAVE:  CALL    GETINT          ; Get program number into A
         POP     HL
         RET
 
+        ; Load default settings
+
+DEFSET: LD      A, DEFMAG1
+        LD      (BBLMAG1), A
+        LD      A, DEFMAG2
+        LD      (BBLMAG2), A
+        LD      A, DEFMAG3
+        LD      (BBLMAG3), A
+        LD      A, DEFMAG4
+        LD      (BBLMAG4), A
+        LD      A, DEFVER
+        LD      (BBLVER), A
+        LD      A, DEFAUTO      ; Set defaults prior to load
+        LD      (BBLAUTO), A
+        RET
+
+        ; Read settings from bubble
+
+BRDSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last one.
+        LD      (BARH),A
+        LD      A,0FFH
+        LD      (BARL),A
+
+        PUSH    HL
+        LD      HL, 040H        ; length 64 bytes
+        LD      DE, SETTINGS
+        CALL    BBLREAD
+        POP     HL
+
+        LD      A, (BBLMAG1)
+        CP      A, DEFMAG1
+        JNZ     DEFSET          ; Load defaults and return
+        LD      A, (BBLMAG2)
+        CP      A, DEFMAG2
+        JNZ     DEFSET
+        LD      A, (BBLMAG3)
+        CP      A, DEFMAG3
+        JNZ     DEFSET
+        LD      A, (BBLMAG4)
+        CP      A, DEFMAG4
+        JNZ     DEFSET
+        LD      A, (BBLVER)
+        CP      A, DEFVER
+        JNZ     DEFSET
+        RET
+
+        ; Write settings from bubble
+
+BWRSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last one.
+        LD      (BARH),A
+        LD      A,0FFH
+        LD      (BARL),A
+
+        PUSH    HL
+        LD      HL, 040H        ; length 64 bytes
+        LD      DE, SETTINGS
+        CALL    BBLWRIT
+        POP     HL
+        RET
+
+BAUTO:  CALL    GETINT          ; Get program number into A
+        RET     NZ
+        CP      A,4
+        JP      NC,OVERR        ; Only programs 0-3 are allowed
+        LD      (BBLAUTO), A
+        JMP     BWRSET          ; Save settings
+
+BNOAUT: LD      A,0FFH
+        LD      (BBLAUTO), A
+        JMP     BWRSET          ; Save settings
+
 BTEST:  RET
 
         ; Initialize the bubble memory. It has been shown that it often fails the first
@@ -4603,7 +4733,7 @@ BINIT:  PUSH    HL
 BGOOD:  LD      HL,MBGOOD
         CALL    PRS
 BINOUT: POP     HL
-        RET
+        JP      BRDSET          ; Jump to read settings
 
         ; Turn on the LED, if we are so equipped
 
@@ -4623,22 +4753,25 @@ PSHEXA: PUSH    PSW             ; save A
         CALL    PHEXA           ; print hex value of A
         JMP     PRNTCRLF        ; jump out via print CRLF
 
-        ; Print hex value in A
+        ; Print hex value in A. Does not damage A.
 
 PHEXA:	PUSH	PSW
 	RLC
 	RLC
 	RLC
 	RLC
-	CALL	PHEXA0
+	CALL	PHEXA1
 	POP	PSW
-PHEXA0:	ANI	00FH
+        PUSH    PSW
+        CALL    PHEXA1
+        POP     PSW
+        RET
+PHEXA1:	ANI	00FH
 	ADI	090H
 	DAA
 	ACI	040H
 	DAA
-        CALL    OUTC
-	RET
+        JP      $0008           ; Send it via RST 08
 
         ; Print SP-minus-6 in hex
         
