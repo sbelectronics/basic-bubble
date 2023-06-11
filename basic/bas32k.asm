@@ -44,6 +44,7 @@
         EXTERN  BARH
 
         PUBLIC  PHEXA
+        PUBLIC  PHEXHL
 
 ; GENERAL EQUATES
 
@@ -4593,16 +4594,34 @@ BLOADA: LD      (BLDRUN),A      ; Save 'A', including the autorun bit
         CALL    CLRPTR          ; this will wipe everything, including the stack
         PUSH    DE              ; put return address back on the stack
 
-        LD      HL, 04000H      ; load 16K
+        LD      HL, 02000H      ; load 8K
         LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
         CALL    BBLREAD
+        CALL    PHEXA
+
+        LD      A,080H
+        LD      (BARL),A
+        LD      HL, 02000H      ; load 8K
+        LD      DE, PROGND+02000H      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLREAD
+        CALL    PHEXA
 
         LD      A,(BARH)        ; Increment BARH by one 16K page
         INC     A
         LD      (BARH),A
-        LD      HL, 04000H-PROGND-100H ; Stop 256 bytes from the end of memory. Protect the stack.
-        LD      DE, PROGND+04000H      ; Start right after the last block we wrote
-        CALL    BBLREAD         ; Read the second page
+        LD      A,000H
+        LD      (BARL),A
+        LD      HL, 02000H      ; load 8K
+        LD      DE, PROGND+04000H      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLREAD
+        CALL    PHEXA
+
+        ;LD      A,(BARH)        ; Increment BARH by one 16K page
+        ;INC     A
+        ;LD      (BARH),A
+        ;LD      HL, (4000H - (PROGND-8000H) - 100H + 40H) ; Stop 256 bytes from the end of memory. Protect the stack.
+        ;LD      DE, PROGND+03FC0H      ; Start right after the last block we wrote
+        ;CALL    BBLREAD         ; Read the second page
 
         LD      A,(BLDRUN)      ; Check autorun flag
         AND     A,080H
@@ -4629,16 +4648,34 @@ BSAVE:  CALL    GETINT          ; Get program number into A
         LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
         LD      A,0
         LD      (BARL),A        ; bubble lower address is 0
-        LD      HL, 04000H      ; save 16K
+        LD      HL, 02000H      ; save 8K
         LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
         CALL    BBLWRIT
+        CALL    PHEXA
+
+        LD      A,080H
+        LD      (BARL),A
+        LD      HL, 02000H      ; save 8K
+        LD      DE, PROGND+02000H      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLWRIT
+        CALL    PHEXA
 
         LD      A,(BARH)        ; Increment BARH by one 16K page
         INC     A
         LD      (BARH),A
-        LD      HL, 04000H-PROGND-100H ; Stop 256 bytes from the end of memory. Protect the stack.
-        LD      DE, PROGND+04000H      ; Start right after the last block we wrote
-        CALL    BBLWRIT         ; Read the second page
+        LD      A,000H
+        LD      (BARL),A
+        LD      HL, 02000H      ; save 8K
+        LD      DE, PROGND+04000H      ; program starts at address of prognd and ends at contents of prognd
+        CALL    BBLWRIT
+        CALL    PHEXA
+
+        ;LD      A,(BARH)        ; Increment BARH by one 16K page
+        ;INC     A
+        ;LD      (BARH),A
+        ;LD      HL, (4000H - (PROGND-8000H) - 100H + 40H) ; Stop 256 bytes from the end of memory. Protect the stack.
+        ;LD      DE, PROGND+03FC0H      ; Start right after the last block we wrote
+        ;CALL    BBLWRIT         ; Read the second page
 
         POP     HL
         RET
@@ -4785,6 +4822,14 @@ PSP:    PUSH    PSW
         LD      A,L
         CALL    PHEXA
         POP     HL
+        POP     PSW
+        RET
+
+PHEXHL: PUSH    PSW
+        LD      A,H
+        CALL    PHEXA
+        LD      A,L
+        CALL    PHEXA
         POP     PSW
         RET
 
