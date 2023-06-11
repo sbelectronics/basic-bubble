@@ -289,38 +289,12 @@ PUBLIC  INIT
         LD HL,SIGNON1               ; sign-on message
         CALL PRINT                  ; output string
 
-;        XXX smbaker disable warm-start option   
+;        XXX smbaker deleted warm-start option to make space
 
-;        LD A,(basicStarted)         ; check the BASIC STARTED flag
-;        CP 'Y'                      ; to see if this is power-up
-;        JP NZ,COLDSTART             ; if not BASIC started then always do cold start
-;        LD HL,SIGNON2               ; cold/warm message
-;        CALL PRINT                  ; output string
-;.CORW
-;        RST 10H
-;        AND 11011111B               ; lower to uppercase
-;        CP 'C'
-;        JP NZ,CHECKWARM
-;        RST 08H
-;        LD A,CR
-;        RST 08H
-;        LD A,LF
-;        RST 08H
 .COLDSTART
         LD A,'Y'                    ; set the BASIC STARTED flag
         LD (basicStarted),A
         JP $0240                    ; <<<< Start Basic COLD
-
-;.CHECKWARM
-;        CP 'W'
-;        JP NZ,CORW
-;        RST 08H
-;        LD A,CR
-;        RST 08H
-;        LD A,LF
-;        RST 08H
-;.WARMSTART
-;        JP $0243                    ; <<<< Start Basic WARM
 
 .PRINT
         LD A,(HL)                   ; get character
@@ -338,12 +312,9 @@ SECTION init_strings                ; ORG $01F0
 
 .SIGNON1
         DEFM    CR,LF
+        DEFM    "SIO/2 Driver - smbaker",CR,LF
         DEFM    "RC2014 - MS Basic Loader",CR,LF
         DEFM    "z88dk - feilipu",CR,LF,0
-
-.SIGNON2
-        DEFM    CR,LF
-        DEFM    "Cold | Warm start (C|W) ? ",0
 
 ;==============================================================================
 ;

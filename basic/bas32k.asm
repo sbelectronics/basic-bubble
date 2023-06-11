@@ -43,7 +43,12 @@
         EXTERN  BARL
         EXTERN  BARH
 
+        PUBLIC  PHEXA
+
 ; GENERAL EQUATES
+
+        DEFC    LEDPORT =   40H         ; Address of LED port
+
 
         DEFC    CTRLC   =   03H         ; Control "C"
         DEFC    CTRLG   =   07H         ; Control "G"
@@ -179,23 +184,19 @@ INIT:   LD      HL,INITAB       ; Initialise workspace
         CALL    CLREG           ; Clear registers and stack
         CALL    PRNTCRLF        ; Output CRLF
 
-        CALL    BBLINIT
-        CPI     040H
-        JZ      BGOOD
-        LD      HL,MBBAD        ; Point to message
-        CALL    PSHEXA
-        JMP     BDONE
-BGOOD:  LD      HL,MBGOOD
-        CALL    PRS
-BDONE:
-
         LD      (BUFFER+72+1),A ; Mark end of buffer
         LD      (PROGST),A      ; Initialise program area
+
+        CALL    LEDOFF
+        CALL    BINIT
+
+        JP      SKIPMS          ; XXX SMBAKER - the "Memory Size?" prompt annoys me
 MSIZE:  LD      HL,MEMMSG       ; Point to message
         CALL    PRS             ; Output "Memory size"
         CALL    PROMPT          ; Get input with '?'
         CALL    GETCHR          ; Get next character
         JP      NZ,TSTMEM       ; If number - Test if RAM there
+SKIPMS:
         LD      HL,STLOOK       ; Point to start of RAM
 MLOOP:  INC     HL              ; Next byte
         LD      A,H             ; Above address FFFF ?
@@ -255,15 +256,16 @@ BRKRET: CALL    CLREG           ; Clear registers and stack
 
 BFREE:  DEFB    " Bytes free",CR,LF,0,0
 
-SIGNON: DEFB    "Z80 BASIC Ver 4.7c",CR,LF
+SIGNON: DEFB    "Z80 BASIC Ver 4.7c-Bubble",CR,LF
         DEFB    "Copyright ",40,"C",41
-        DEFB    " 1978 by Microsoft",CR,LF,0,0
+        DEFB    " 1978 by Microsoft",CR,LF
+        DEFB    "Bubble Memory Extensions by smbaker",CR,LF,0,0
 
 MEMMSG: DEFB    "Memory top",0
 
 MBBAD:  DEFB    "Bubble Trouble! Error: ",0,0
 
-MBGOOD: DEFB    "Bubble Initialization Success!",CR,LF,0,0
+MBGOOD: DEFB    "Bubble Initialization Success!",CR,LF,CR,LF,0,0
 
 ; FUNCTION ADDRESS TABLE
 
@@ -334,7 +336,10 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'B'+80H,"LOAD"
         DEFB    'B'+80H,"SAVE"
         DEFB    'B'+80H,"TEST"
-        DEFB    'N'+80H,"EW"    ; A6h
+        DEFB    'B'+80H,"INIT"
+        DEFB    'L'+80H,"EDON"
+        DEFB    'L'+80H,"EDOFF"
+        DEFB    'N'+80H,"EW"    ; A9h
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -349,7 +354,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    '-'+80H
         DEFB    '*'+80H
         DEFB    '/'+80H
-        DEFB    '^'+80H        ; B3h
+        DEFB    '^'+80H        ; B5h
         DEFB    'A'+80H,"ND"
         DEFB    'O'+80H,"R"
         DEFB    '>'+80H
@@ -366,7 +371,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'S'+80H,"QR"
         DEFB    'R'+80H,"ND"
         DEFB    'L'+80H,"OG"
-        DEFB    'E'+80H,"XP"    ; C3h
+        DEFB    'E'+80H,"XP"    ; C5h
         DEFB    'C'+80H,"OS"
         DEFB    'S'+80H,"IN"
         DEFB    'T'+80H,"AN"
@@ -424,6 +429,9 @@ WORDTB: DEFW    PEND
         DEFW    BLOAD
         DEFW    BSAVE
         DEFW    BTEST
+        DEFW    BINIT
+        DEFW    LEDON
+        DEFW    LEDOFF
         DEFW    NEW
 
 ; RESERVED WORD TOKEN VALUES
@@ -435,27 +443,27 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0A6H        ; NEW
+        DEFC    ZNEW    =   0A9H        ; NEW
 
-        DEFC    ZTAB    =   0A7H        ; TAB
-        DEFC    ZTO     =   0A8H        ; TO
-        DEFC    ZFN     =   0A9H        ; FN
-        DEFC    ZSPC    =   0AAH        ; SPC
-        DEFC    ZTHEN   =   0ABH        ; THEN
-        DEFC    ZNOT    =   0ACH        ; NOT
-        DEFC    ZSTEP   =   0ADH        ; STEP
+        DEFC    ZTAB    =   0AAH        ; TAB
+        DEFC    ZTO     =   0ABH        ; TO
+        DEFC    ZFN     =   0ACH        ; FN
+        DEFC    ZSPC    =   0ADH        ; SPC
+        DEFC    ZTHEN   =   0AEH        ; THEN
+        DEFC    ZNOT    =   0AFH        ; NOT
+        DEFC    ZSTEP   =   0B0H        ; STEP
 
-        DEFC    ZAMP    =   0AEH        ; &
-        DEFC    ZPLUS   =   0AFH        ; +
-        DEFC    ZMINUS  =   0B0H        ; -
-        DEFC    ZTIMES  =   0B1H        ; *
-        DEFC    ZDIV    =   0B2H        ; /
-        DEFC    ZOR     =   0B5H        ; OR
-        DEFC    ZGTR    =   0B6H        ; >
-        DEFC    ZEQUAL  =   0B7H        ; =
-        DEFC    ZLTH    =   0B8H        ; <
-        DEFC    ZSGN    =   0B9H        ; SGN
-        DEFC    ZLEFT   =   0D0H        ; LEFT$
+        DEFC    ZAMP    =   0B1H        ; &
+        DEFC    ZPLUS   =   0B2H        ; +
+        DEFC    ZMINUS  =   0B3H        ; -
+        DEFC    ZTIMES  =   0B4H        ; *
+        DEFC    ZDIV    =   0B5H        ; /
+        DEFC    ZOR     =   0B8H        ; OR
+        DEFC    ZGTR    =   0B9H        ; >
+        DEFC    ZEQUAL  =   0BAH        ; =
+        DEFC    ZLTH    =   0BBH        ; <
+        DEFC    ZSGN    =   0BCH        ; SGN
+        DEFC    ZLEFT   =   0D3H        ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -783,7 +791,7 @@ SRCHLP: LD      BC,HL           ; BC = Address to look at
         JP      SRCHLP          ; Keep looking
 
 NEW:    RET     NZ              ; Return if any more on line
-CLRPTR: LD      HL,(BASTXT)     ; Point to start of program
+CLRPTR: LD      HL,(BASTXT)     ; Point to start of program. Important this does not alter DE. Does alter BC and HL.
         XOR     A               ; Set program area to empty
         LD      (HL),A          ; Save LSB = 00
         INC     HL
@@ -4506,29 +4514,58 @@ HEXIT:  EX      DE,HL           ; Value into DE, Code string into HL
         POP     HL
         RET
 
-BLOAD:  PUSH    HL
-        CALL    GETINT          ; Get program number into A
+        ; Bubble Load and Save Routines. For simplicity sake, we save everything
+        ; from PROGND to 0xFE00. We leave the last 256 bytes unsaved because that
+        ; is where the stack is, and we don't want to clobber the stack while we're
+        ; using the stack. By measurement, when BLOAD is called, after it does CLRPTR,
+        ; the SP is at TOP_OF_MEM-54. So 256 bytes seems plenty safe.
+
+        ; Each "Program" is ~ 32K in size. We can store 4 programs, and they're numbered
+        ; 0-3.
+
+        ; For example, "BSAVE 0", "BLOAD 0"
+
+BLOAD:  CALL    GETINT          ; Get program number into A
+        RET     NZ
+        CP      A,4
+        JP      NC,OVERR        ; Only programs 0-3 are allowed
         ; 	BARL <- LSB OF BUBBLE ADDRESS
         ; 	BARH <- MSB OF BUBBLE ADDRESS
         ; 	HL <- NUMBER OF BYTES TO TRANSFER
         ; 	DE <- STARTING RAM ADDRESS OF DESTINATION
+
         RLCA                    ; multiply program number by 2
         LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
         LD      A,0
         LD      (BARL),A        ; bubble lower address is 0
+
+        POP     DE              ; save return address in DE
+        CALL    CLRPTR          ; this will wipe everything, including the stack
+        PUSH    DE              ; put return address back on the stack
+
         LD      HL, 04000H      ; load 16K
         LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
         CALL    BBLREAD
-        CALL    SETPTR
-        POP     HL
-        RET
 
-BSAVE:  PUSH    HL
-        CALL    GETINT          ; Get program number into A
+        LD      A,(BARH)        ; Increment BARH by one 16K page
+        INC     A
+        LD      (BARH),A
+        LD      HL, 04000H-PROGND-100H ; Stop 256 bytes from the end of memory. Protect the stack.
+        LD      DE, PROGND+04000H      ; Start right after the last block we wrote
+        CALL    BBLREAD         ; Read the second page
+
+        CALL    PRNTOK          ; Printing OK before SetPTR is what nascom basic does
+        JP      SETPTR
+
+BSAVE:  CALL    GETINT          ; Get program number into A
+        RET     NZ
+        CP      A,4
+        JP      NC,OVERR        ; Only programs 0-3 are allowed
         ; 	BARL <- LSB OF BUBBLE ADDRESS
         ; 	BARH <- MSB OF BUBBLE ADDRESS
         ; 	HL <- NUMBER OF BYTES TO TRANSFER
         ; 	DE <- STARTING RAM ADDRESS OF SOURCE
+        PUSH    HL
         RLCA                    ; multiply program number by 2
         LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
         LD      A,0
@@ -4536,19 +4573,58 @@ BSAVE:  PUSH    HL
         LD      HL, 04000H      ; save 16K
         LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
         CALL    BBLWRIT
-        CALL    SETPTR
+
+        LD      A,(BARH)        ; Increment BARH by one 16K page
+        INC     A
+        LD      (BARH),A
+        LD      HL, 04000H-PROGND-100H ; Stop 256 bytes from the end of memory. Protect the stack.
+        LD      DE, PROGND+04000H      ; Start right after the last block we wrote
+        CALL    BBLWRIT         ; Read the second page
+
         POP     HL
         RET
 
 BTEST:  RET
-                                ; Print string, hex value in A, and CRLF
+
+        ; Initialize the bubble memory. It has been shown that it often fails the first
+        ; time with a 31 (error, timing, FIFO) code. So do it twice. This is called
+        ; automatically at startup, though may also be invoked at runtime with BINIT.
+
+BINIT:  PUSH    HL
+        CALL    BBLINIT
+        CPI     040H
+        JZ      BGOOD
+        CALL    BBLINIT         ; Try once more
+        CPI     040H
+        JZ      BGOOD
+        LD      HL,MBBAD        ; Point to message
+        CALL    PSHEXA
+        JMP     BINOUT
+BGOOD:  LD      HL,MBGOOD
+        CALL    PRS
+BINOUT: POP     HL
+        RET
+
+        ; Turn on the LED, if we are so equipped
+
+LEDON:  OUT     (LEDPORT),A     ; Writing to LEDPORT turns it on
+        RET
+
+        ; Turn off the LED, if we are so equipped
+
+LEDOFF: IN      A,(LEDPORT)     ; Reading from LEDPORT turns it off
+        RET
+
+        ; Print string in HL, hex value in A, and CRLF
+
 PSHEXA: PUSH    PSW             ; save A
         CALL    PRS             ; print string
         POP     PSW             ; restore A
         CALL    PHEXA           ; print hex value of A
-        JMP     PCRLF           ; jump out via print CRLF
+        JMP     PRNTCRLF        ; jump out via print CRLF
 
-                                ; Print hex value in A
+        ; Print hex value in A
+
 PHEXA:	PUSH	PSW
 	RLC
 	RLC
@@ -4563,12 +4639,19 @@ PHEXA0:	ANI	00FH
 	DAA
         CALL    OUTC
 	RET
-                                ; Print CRLF
-PCRLF:  PUSH    PSW
-        MVI     A,00DH
-        CALL    OUTC
-        MVI     A,00AH
-        CALL    OUTC
+
+        ; Print SP-minus-6 in hex
+        
+PSP:    PUSH    PSW
+        PUSH    HL
+        LD      H,0
+        LD      L,0
+        DAD     SP
+        LD      A,H
+        CALL    PHEXA
+        LD      A,L
+        CALL    PHEXA
+        POP     HL
         POP     PSW
         RET
 
