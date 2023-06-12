@@ -37,8 +37,8 @@
 
 ; LINKS TO BUBBLE LIBRARY
 
-        EXTERN  BBLREAD
-        EXTERN  BBLWRIT
+        EXTERN  BREADC
+        EXTERN  BWRITEC
         EXTERN  BBLINIT
         EXTERN  BARL
         EXTERN  BARH
@@ -4580,50 +4580,46 @@ BLOADA: LD      (BLDRUN),A      ; Save 'A', including the autorun bit
         AND     A,07FH          ; Strip off the autorun bit
         CP      A,4
         JP      NC,OVERR        ; Only programs 0-3 are allowed
+
+        ;       SETUP FOR BUBBLE WRITE
         ; 	BARL <- LSB OF BUBBLE ADDRESS
         ; 	BARH <- MSB OF BUBBLE ADDRESS
-        ; 	HL <- NUMBER OF BYTES TO TRANSFER
-        ; 	DE <- STARTING RAM ADDRESS OF DESTINATION
+        ; 	BC <- NUMBER OF BYTES TO TRANSFER
+        ; 	DE <- STARTING RAM ADDRESS OF SOURCE
 
         RLCA                    ; multiply program number by 2
         LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
         LD      A,0
         LD      (BARL),A        ; bubble lower address is 0
 
+        ;       We need to make sure that we don't read memory over the top of
+        ;       the working stack. The stack gets pushed down if there is
+        ;       string space above it. So, reset top of memory, reset stringspace
+        ;       and then clear everything.
+
+        LD      HL,0FFFFH       ; Assume top of memory is at 0xFFFF
+        LD      DE,-50          ; 50 Bytes string space
+        LD      (LSTRAM),HL     ; Save last available RAM
+        ADD     HL,DE           ; Allocate string space
+        LD      (STRSPC),HL     ; Save string space
         POP     DE              ; save return address in DE
         CALL    CLRPTR          ; this will wipe everything, including the stack
         PUSH    DE              ; put return address back on the stack
 
-        LD      HL, 02000H      ; load 8K
-        LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLREAD
-        CALL    PHEXA
+        ;CALL    PHEXSP          ; debugging that the stack is good
 
-        LD      A,080H
-        LD      (BARL),A
-        LD      HL, 02000H      ; load 8K
-        LD      DE, PROGND+02000H      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLREAD
-        CALL    PHEXA
+        LD      BC, 0FFFFH-PROGND-0100H ; program memory minus 256 bytes
+        LD      DE, PROGND
+        CALL    BREADC
+        CP      A,040H          ; 40 is success
+        JP      Z,BLDGD
+        CP      A,042H          ; 42 is success with parity error
+        JP      Z,BLDGD
+        LD      HL,MBBAD
+        CALL    PSHEXA          ; Bad mojo
+        JP      BLOAD2
 
-        LD      A,(BARH)        ; Increment BARH by one 16K page
-        INC     A
-        LD      (BARH),A
-        LD      A,000H
-        LD      (BARL),A
-        LD      HL, 02000H      ; load 8K
-        LD      DE, PROGND+04000H      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLREAD
-        CALL    PHEXA
-
-        ;LD      A,(BARH)        ; Increment BARH by one 16K page
-        ;INC     A
-        ;LD      (BARH),A
-        ;LD      HL, (4000H - (PROGND-8000H) - 100H + 40H) ; Stop 256 bytes from the end of memory. Protect the stack.
-        ;LD      DE, PROGND+03FC0H      ; Start right after the last block we wrote
-        ;CALL    BBLREAD         ; Read the second page
-
-        LD      A,(BLDRUN)      ; Check autorun flag
+BLDGD:  LD      A,(BLDRUN)      ; Check autorun flag
         AND     A,080H
         JP      Z,BLOAD2        ; not set -- don't autorun
 
@@ -4639,45 +4635,31 @@ BSAVE:  CALL    GETINT          ; Get program number into A
         RET     NZ
         CP      A,4
         JP      NC,OVERR        ; Only programs 0-3 are allowed
+        PUSH    HL
+
+        ;       SETUP FOR BUBBLE WRITE
         ; 	BARL <- LSB OF BUBBLE ADDRESS
         ; 	BARH <- MSB OF BUBBLE ADDRESS
-        ; 	HL <- NUMBER OF BYTES TO TRANSFER
+        ; 	BC <- NUMBER OF BYTES TO TRANSFER
         ; 	DE <- STARTING RAM ADDRESS OF SOURCE
-        PUSH    HL
         RLCA                    ; multiply program number by 2
         LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
         LD      A,0
         LD      (BARL),A        ; bubble lower address is 0
-        LD      HL, 02000H      ; save 8K
-        LD      DE, PROGND      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLWRIT
-        CALL    PHEXA
 
-        LD      A,080H
-        LD      (BARL),A
-        LD      HL, 02000H      ; save 8K
-        LD      DE, PROGND+02000H      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLWRIT
-        CALL    PHEXA
+        LD      BC, 0FFFFH-PROGND-0100H ; program memory minus 256 bytes
+        LD      DE, PROGND
+        CALL    BWRITEC
+        CP      A,040H          ; 40 is success
+        JP      Z,BSVGD
+        CP      A,042H          ; 42 is success with parity error
+        JP      Z,BSVGD
+        LD      HL,MBBAD
+        CALL    PSHEXA          ; Bad mojo
+        JP      BSAVE2
 
-        LD      A,(BARH)        ; Increment BARH by one 16K page
-        INC     A
-        LD      (BARH),A
-        LD      A,000H
-        LD      (BARL),A
-        LD      HL, 02000H      ; save 8K
-        LD      DE, PROGND+04000H      ; program starts at address of prognd and ends at contents of prognd
-        CALL    BBLWRIT
-        CALL    PHEXA
-
-        ;LD      A,(BARH)        ; Increment BARH by one 16K page
-        ;INC     A
-        ;LD      (BARH),A
-        ;LD      HL, (4000H - (PROGND-8000H) - 100H + 40H) ; Stop 256 bytes from the end of memory. Protect the stack.
-        ;LD      DE, PROGND+03FC0H      ; Start right after the last block we wrote
-        ;CALL    BBLWRIT         ; Read the second page
-
-        POP     HL
+BSVGD:
+BSAVE2: POP     HL
         RET
 
         ; Load default settings
@@ -4704,9 +4686,9 @@ BRDSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last on
         LD      (BARL),A
 
         PUSH    HL
-        LD      HL, 040H        ; length 64 bytes
+        LD      BC, 040H        ; length 64 bytes
         LD      DE, SETTINGS
-        CALL    BBLREAD
+        CALL    BREADC
         POP     HL
 
         LD      A, (BBLMAG1)
@@ -4734,9 +4716,9 @@ BWRSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last on
         LD      (BARL),A
 
         PUSH    HL
-        LD      HL, 040H        ; length 64 bytes
+        LD      BC, 040H        ; length 64 bytes
         LD      DE, SETTINGS
-        CALL    BBLWRIT
+        CALL    BWRITEC
         POP     HL
         RET
 
@@ -4812,7 +4794,7 @@ PHEXA1:	ANI	00FH
 
         ; Print SP-minus-6 in hex
         
-PSP:    PUSH    PSW
+PHEXSP: PUSH    PSW
         PUSH    HL
         LD      H,0
         LD      L,0
