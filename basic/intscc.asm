@@ -1,52 +1,13 @@
-;==============================================================================
-;
-; The rework to support MS Basic HLOAD, RESET, MEEK, MOKE,
-; and the Z80 instruction tuning are copyright (C) 2020-23 Phillip Stevens
-;
-; This Source Code Form is subject to the terms of the Mozilla Public
-; License, v. 2.0. If a copy of the MPL was not distributed with this
-; file, You can obtain one at http://mozilla.org/MPL/2.0/.
-;
-; ACIA 6850 interrupt driven serial I/O to run modified NASCOM Basic 4.7.
-; Full input and output buffering with incoming data hardware handshaking.
-; Handshake shows full before the buffer is totally filled to allow run-on
-; from the sender. Transmit and receive are interrupt driven.
-; 115200 baud, 8n2
-;
-; feilipu, August 2020
-;
-;==============================================================================
-;
-; The updates to the original BASIC within this file are copyright Grant Searle
-;
-; You have permission to use this for NON COMMERCIAL USE ONLY
-; If you wish to use it elsewhere, please include an acknowledgement to myself.
-;
-; http://searle.wales/
-;
-;==============================================================================
-;
-; NASCOM ROM BASIC Ver 4.7, (C) 1978 Microsoft
-; Scanned from source published in 80-BUS NEWS from Vol 2, Issue 3
-; (May-June 1983) to Vol 3, Issue 3 (May-June 1984)
-; Adapted for the freeware Zilog Macro Assembler 2.10 to produce
-; the original ROM code (checksum A934H). PA
-;
-;==============================================================================
-;
-; INCLUDES SECTION
-;
-
 INCLUDE "board.inc"
 
-DEFC SIOA_D = $80
-DEFC SIOA_C = $82
-DEFC SIOB_D = $81
-DEFC SIOB_C = $83
+DEFC SCCA_D = $80
+DEFC SCCA_C = $82
+DEFC SCCB_D = $81
+DEFC SCCB_C = $83
 DEFC R5_RTS_HIGH = $E8
 DEFC R5_RTS_LOW = $EA
-DEFC R1_RX_ALL_NOTX = $18               ; RX Interrupt on all receive chart
-DEFC R1_RX_ALL_TX = $1A                 ; RX Interrupt on all receive chars, and tx int
+DEFC R1_RX_ALL_NOTX = $10               ; RX Interrupt on all receive chart
+DEFC R1_RX_ALL_TX = $12                 ; RX Interrupt on all receive chars, and tx int
 
 ;==============================================================================
 ;
@@ -56,23 +17,25 @@ DEFC R1_RX_ALL_TX = $1A                 ; RX Interrupt on all receive chars, and
 ;------------------------------------------------------------------------------
 SECTION acia_interrupt              ; ORG $0070
 
-.sio_int
+.scc_int
         push af
         push hl
 
-        sub     a                   ; XXX smbaker
-        out     (SIOA_C),a          ; XXX smbaker    
-        in      a, (SIOA_C)         ; XXX smbaker
-        rrca                        ; check whether a byte has been received, via SER_RDRF
-        jr NC,sio_tx_send          ; if not, go check for bytes to transmit
+        LD      A, $02              ; XXX smbaker - software intack cycle
+        OUT     (SCCA_C),A
+        IN      A, (SCCA_C)
 
-.sio_rx_get
-        in a,(SIOA_D)               ; Get the received byte from the ACIA  XXX smbaker
+        in      a, (SCCA_C)         ; XXX smbaker - skipped pointer reg here
+        rrca                        ; check whether a byte has been received, via SER_RDRF
+        jr NC,scc_tx_send          ; if not, go check for bytes to transmit
+
+.scc_rx_get
+        in a,(SCCA_D)               ; Get the received byte from the ACIA  XXX smbaker
         ld l,a                      ; Move Rx byte to l
 
         ld a,(serRxBufUsed)         ; Get the number of bytes in the Rx buffer
         cp SER_RX_BUFSIZE-1         ; check whether there is space in the buffer
-        jr NC,sio_tx_check         ; buffer full, check if we can send something
+        jr NC,scc_tx_check         ; buffer full, check if we can send something
 
         ld a,l                      ; get Rx byte from l
         ld hl,(serRxInPtr)          ; get the pointer to where we poke
@@ -85,38 +48,36 @@ SECTION acia_interrupt              ; ORG $0070
 
         ld a,(serRxBufUsed)         ; get the current Rx count
         cp SER_RX_FULLSIZE          ; compare the count with the preferred full size
-        jp NZ,sio_tx_check         ; leave the RTS low, and check for Rx/Tx possibility
+        jp NZ,scc_tx_check         ; leave the RTS low, and check for Rx/Tx possibility
 
         ; set rts high
         LD       A, $05             ; XXX smbaker
-        OUT      (SIOA_C),A         ; XXX smbaker
+        OUT      (SCCA_C),A         ; XXX smbaker
         LD       A,R5_RTS_HIGH      ; XXX smbaker - set RTS high
-        OUT      (SIOA_C),A         ; XXX smbaker
+        OUT      (SCCA_C),A         ; XXX smbaker
 
         ; turn off tx interrupts       XXX smbaker defer this for now
         ;LD       A, $01
-        ;OUT      (SIOA_C),A         ; XXX smbaker
+        ;OUT      (SCCA_C),A         ; XXX smbaker
         ;LD       A,R1_RX_ALL_NOTX   ; XXX smbaker - disable tx interrupt
-        ;OUT      (SIOA_C),A         ; XXX smbaker
+        ;OUT      (SCCA_C),A         ; XXX smbaker
 
-.sio_tx_check
-        sub     a                   ; XXX smbaker
-        out     (SIOA_C),a          ; XXX smbaker    
-        in      a, (SIOA_C)         ; XXX smbaker
+.scc_tx_check
+        in      a, (SCCA_C)         ; XXX smbaker
         rrca                        ; check whether a byte has been received, via SER_RDRF
-        jr C,sio_rx_get            ; another byte received, go get it
+        jr C,scc_rx_get            ; another byte received, go get it
 
-.sio_tx_send
+.scc_tx_send
         rrca                        ; check whether a byte can be transmitted, via SER_TDRE
-        jr NC,sio_txa_end          ; if not, we're done for now
+        jr NC,scc_txa_end          ; if not, we're done for now
 
         ld a,(serTxBufUsed)         ; get the number of bytes in the Tx buffer
         or a                        ; check whether it is zero
-        jp Z,sio_tei_clear         ; if the count is zero, then disable the Tx Interrupt
+        jp Z,scc_tei_clear         ; if the count is zero, then disable the Tx Interrupt
 
         ld hl,(serTxOutPtr)         ; get the pointer to place where we pop the Tx byte
         ld a,(hl)                   ; get the Tx byte
-        OUT (SIOA_D),A              ; Output the character   XXX smbaker
+        OUT (SCCA_D),A              ; Output the character   XXX smbaker
 
         inc l                       ; move the Tx pointer, just low byte, along
         ld a,SER_TX_BUFSIZE-1       ; load the buffer size, (n^2)-1
@@ -128,16 +89,19 @@ SECTION acia_interrupt              ; ORG $0070
         ld hl,serTxBufUsed
         dec (hl)                    ; atomically decrement current Tx count
 
-        jr NZ,sio_txa_end          ; if we've more Tx bytes to send, we're done for now
+        jr NZ,scc_txa_end          ; if we've more Tx bytes to send, we're done for now
 
-.sio_tei_clear
+.scc_tei_clear
         ; turn off tx interrupts        XXX smbaker defer this for now
         ;LD       A, $01
-        ;OUT      (SIOA_C),A         ; XXX smbaker
+        ;OUT      (SCCA_C),A         ; XXX smbaker
         ;LD       A,R1_RX_ALL_NOTX   ; XXX smbaker - disable tx interrupt
-        ;OUT      (SIOA_C),A         ; XXX smbaker
+        ;OUT      (SCCA_C),A         ; XXX smbaker
 
-.sio_txa_end
+.scc_txa_end
+        LD      A,$38                ; XXX smbaker - reset IUS. skipped pointer reg here.
+        OUT     (SCCA_C),A
+
         pop hl
         pop af
 
@@ -164,9 +128,9 @@ SECTION acia_rxa                    ; ORG $00D8
 
         ; set rts low
         LD       A,$05              ; XXX SMBAKER
-        OUT      (SIOA_C),A         ; XXX SMBAKER - set rts low 
+        OUT      (SCCA_C),A         ; XXX SMBAKER - set rts low 
         LD       A,R5_RTS_LOW       ; XXX SMBAKER
-        OUT      (SIOA_C),A         ; XXX SMBAKER 
+        OUT      (SCCA_C),A         ; XXX SMBAKER 
 
 .rxa_get_byte
         push hl                     ; store HL so we don't clobber it
@@ -186,16 +150,14 @@ SECTION acia_rxa                    ; ORG $00D8
 SECTION acia_txa                    ; ORG $0100
 
 .TXA                                ; output a character in A via ACIA
-                PUSH     AF              ; Store character
-conout1:        SUB      A
-                OUT      (SIOA_C),A
-                IN       A,(SIOA_C)
-                RRCA
-                BIT      1,A             ; Set Zero flag if still transmitting character
-                JR       Z,conout1       ; Loop until flag signals ready
-                POP      AF              ; Retrieve character
-                OUT      (SIOA_D),A      ; Output the character
-                RET
+        PUSH     AF                     ; Store character
+conout1:        
+        IN      A,(SCCA_C)
+        BIT     2,A
+        JR      Z,conout1               ; loop until tx flag is clear
+        POP     AF
+        OUT     (SCCA_D),A
+        RET
 
 ;------------------------------------------------------------------------------
 SECTION init                        ; ORG $0148
@@ -203,42 +165,19 @@ SECTION init                        ; ORG $0148
 PUBLIC  INIT
 
 .MEM_ERR
-        LD L,A                      ; preserve the error byte
+        LD D,A                      ; preserve the error byte
         DEFB 01H                    ; skip "LD L,BEL"
 .INIT
-        LD L,BEL                    ; prepare a BEL, to indicate normal boot
+        LD D,BEL                    ; prepare a BEL, to indicate normal boot
 
-        ; XXX smbaker - SIO initialization
-        ; XXX smbaker - int32k did this with receiver disabled
-
-        LD      A,$00            ; write 0
-        OUT     (SIOA_C),A
-        LD      A,$18            ; reset ext/status interrupts
-        OUT     (SIOA_C),A
-
-        LD      A,$04            ; write 4
-        OUT     (SIOA_C),A
-        LD      A,$C4            ; X64, no parity, 1 stop
-        OUT     (SIOA_C),A
-
-        LD      A,$01            ; write 1
-        OUT     (SIOA_C),A
-        LD      A,R1_RX_ALL_NOTX ; interrupt on all recv
-        OUT     (SIOA_C),A
-
-        LD      A,$03            ; write 3
-        OUT     (SIOA_C),A
-        LD      A,$E1            ; 8 bits, auto enable, rcv enab
-        OUT     (SIOA_C),A
-
-        LD      A,$05            ; write 5
-        OUT     (SIOA_C),A
-        LD      A,R5_RTS_LOW     ; dtr enable, 8 bits, tx enable, rts
-        OUT     (SIOA_C),A
+        LD      HL,SCCCMDS          ; Write all characters
+        LD      B,SCCCMDS-SCCCMDE
+        LD      C,SCCA_C
+        OTIR
 
 
-        LD A,L                      ; get byte to transmit
-        OUT (SIOA_D),A              ; send it
+        LD A,D                      ; get byte to transmit
+        OUT (SCCA_D),A              ; send it
 
         LD A,(basicStarted)         ; save BASIC STARTED flag
 
@@ -295,6 +234,65 @@ PUBLIC  INIT
         LD (basicStarted),A
         JP $0240                    ; <<<< Start Basic COLD
 
+.BAUD   PUSH    BC
+        PUSH    HL
+        LXI     HL,BAUDTABLE
+        LD      B,0
+        LD      C,A
+        ADD     HL,BC
+        LD      A,(HL)
+        CMP     A,0FFH          ; FF means not supported
+        JZ      BAUDOUT         ; Uh oh
+        LD      A,12
+        OUT     (SCCA_C),A
+        LD      A,(HL)
+        OUT     (SCCA_C),A
+.BAUDOUT:
+        POP     HL
+        POP     BC
+        RET
+
+.SCCCMDS:
+        ;DEFB   9, 0xc0         ; Reset
+        DEFB    3, 0xc0         ; Receiver disable
+        DEFB    5, 0xe2         ; Transmiter disable
+        DEFB    4, 0x44         ; x16, 1stop-bit, non-parity
+        DEFB    3, 0xe0         ; Receive  8bit/char 
+        DEFB    5, 0xe2         ; Send 8bit/char dtr rts
+        DEFB    9, 0x20         ; Software intack enable XXX smbaker
+        DEFB    11, 0x50        ; BG use for receiver and transmiter
+        DEFB    12, SCC_BRG_9600_73728MHz     ; see ../common/board.s
+        DEFB    13, 00
+        DEFB    14, SCC_CLK_CPU     ; see ../common/board.s
+        DEFB    14, (SCC_CLK_CPU | 1)    ; BG enable
+        DEFB    3, 0xe1         ; Receiver enable
+        DEFB    5, 0xea         ; Transmiter enable
+        DEFB    1, R1_RX_ALL_NOTX ; XXX smbaker - enable rx but not tx interrupt
+.SCCCMDE:
+
+.BAUDTABLE:
+        DEFB    $FF                     ; 300 baud is not supported
+        DEFB    SCC_BRG_1200_73728MHz
+        DEFB    SCC_BRG_2400_73728MHz
+        DEFB    SCC_BRG_4800_73728MHz
+        DEFB    SCC_BRG_9600_73728MHz
+        DEFB    SCC_BRG_19200_73728MHz
+        DEFB    SCC_BRG_38400_73728MHz
+        DEFB    SCC_BRG_57600_73728MHz
+        DEFB    SCC_BRG_115200_73728MHz
+
+DEFC SCC_BRG_1200_73728MHz = 190        ; 1200 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_2400_73728MHz = 94         ; 2400 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_4800_73728MHz = 46         ; 4800 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_9600_73728MHz = 22         ; 9600 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_19200_73728MHz = 10        ; 19200 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_38400_73728MHz = 4         ; 38400 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_57600_73728MHz = 2         ; 57600 baud using 7.3727Mhz crystal
+DEFC SCC_BRG_115200_73728MHz = 0         ; 115200 baud using 7.3727Mhz crystal. Not sure if works.
+
+DEFC SCC_CLK_CPU = 2
+DEFC SCC_CLK_SEPARATE = 0
+
 ;==============================================================================
 ;
 ; Z80 INTERRUPT VECTOR PROTOTYPE ASSIGNMENTS
@@ -312,10 +310,10 @@ DEFC    RST_00      =       INIT            ; Initialise, should never get here
 DEFC    RST_08      =       TXA             ; TX character, loop until space
 DEFC    RST_10      =       RXA             ; RX character, loop until byte
 ;       RST_18      =       RXA_CHK         ; Check receive buffer status, return # bytes available
-DEFC    RST_20      =       UFERR           ; User Function undefined (RST20)
+DEFC    RST_20      =       BAUD            ; Set Baud (RST20)
 DEFC    RST_28      =       UFERR           ; User Function undefined (RST28)
 DEFC    RST_30      =       UFERR           ; User Function undefined (RST30)
-DEFC    INT_INT     =       sio_int        ; ACIA interrupt
+DEFC    INT_INT     =       scc_int        ; ACIA interrupt
 DEFC    INT_NMI     =       NULL_NMI        ; RETN
 
 ;==============================================================================

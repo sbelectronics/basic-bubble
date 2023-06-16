@@ -1,0 +1,27 @@
+Bubble Basic Help
+
+All the features of standard Nascom basic, plus the following commands:
+
+ABOUT. Display additional contributor info.
+
+BAUD <n>. Set baud rate, if SCC-equipped.
+          <n> = 300, 1200, 2400, 4800, 9600, 19200, 3840, 5760, 11520
+
+BSAVE <n>. Save a program. <n> is a number from 0-3.
+
+BLOAD <n>. Load a program. <n> is a number from 0-3.
+
+BAUTO <n>. Set program to autorun on boot.
+
+BNOAUTO. Turn off autorun.
+
+BINIT. Reinitialize the bubble memory.
+
+BTEST. Perform a destructive bubble memory test.
+
+LEDON. Turn on the LED.
+
+LEDOFF. Turn off the LED.
+
+Pressing CTRL-C during boot will abort any saved BAUTO commands and
+revert baud rate to maximum.

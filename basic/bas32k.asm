@@ -40,8 +40,11 @@
         EXTERN  BREADC
         EXTERN  BWRITEC
         EXTERN  BBLINIT
+        EXTERN  BAR
         EXTERN  BARL
         EXTERN  BARH
+        EXTERN  BBLWRIT
+        EXTERN  BBLREAD
 
         PUBLIC  PHEXA
         PUBLIC  PHEXHL
@@ -65,6 +68,16 @@
         DEFC    ESC     =   1BH         ; Escape
         DEFC    DEL     =   7FH         ; Delete
 
+        DEFC    BAUD300 =   0
+        DEFC    BAUD1200 =  1
+        DEFC    BAUD2400 =  2
+        DEFC    BAUD4800 =  3
+        DEFC    BAUD9600 =  4
+        DEFC    BAUD19200 = 5
+        DEFC    BAUD38400 = 6
+        DEFC    BAUD57600 = 7
+        DEFC    BAUD115200 = 8
+
 ; BASIC WORK SPACE LOCATIONS
 
         PUBLIC WRKSPC                   ; Start of BASIC RAM
@@ -72,9 +85,12 @@
         ; XXX smbaker 8200-823f reserved for bubble state in bblbas.asm
 
         ; XXX smbaker 8240-827f are my own temporaries
+
         DEFC    BLDRUN   =  8240H       ; Used by BLOAD internally to signal auto run
 
-        DEFC    SETTINGS =  8280H       ; XXX smbaker settings area for bubble memory, starts at 8280. 
+        ; XXX smbaker 8280-82FF are settings area for bubble preferences
+
+        DEFC    SETTINGS =  8280H
 
         DEFC    BBLMAG1  =  SETTINGS
         DEFC    BBLMAG2  =  SETTINGS+001H
@@ -82,6 +98,7 @@
         DEFC    BBLMAG4  =  SETTINGS+003H
         DEFC    BBLVER   =  SETTINGS+004H
         DEFC    BBLAUTO  =  SETTINGS+005H    ; 0-3 = autorun program; 0xFF = no autorun
+        DEFC    BBLBAUD  =  SETTINGS+006H    ; baud rate divsor for SCC
 
         DEFC    DEFAUTO  =  0FFH        ; Default BBLAUTO = 0xFF
         DEFC    DEFMAG1  =  0FEH
@@ -89,6 +106,7 @@
         DEFC    DEFMAG3  =  0FAH
         DEFC    DEFMAG4  =  0CEH
         DEFC    DEFVER   =  001H
+        DEFC    DEFBAUD  =  BAUD9600
 
         DEFC    WRKSPC  =   8300H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
                                         
@@ -274,7 +292,20 @@ SETTOP: DEC     HL              ; Back one byte
 
         LD      SP,STACK        ; Temporary stack
         CALL    CLREG           ; Clear registers and stack
-        LD      A,(BBLAUTO)
+
+        ; Give the user the option to CTRL-C the autoboot and/or baud
+
+        RST     18H             ; Check input status
+        OR      A               ; Key pressed?
+        JP      Z, CKBBL        ; Nope.
+        RST     10H             ; Read Key
+        CP      3               ; Is CTRL-C ?
+        JP      NZ, CKBBL       ; Nope.
+        LD      HL,MABRT
+        CALL    PRS
+        JP      PRNTOK
+
+CKBBL:  LD      A,(BBLAUTO)
         CP      A,0FFH          ; Auto load and run?
         JZ      PRNTOK          ; Nope.
         OR      A,080H          ; Set the autorun bit
@@ -286,16 +317,23 @@ BRKRET: CALL    CLREG           ; Clear registers and stack
 
 BFREE:  DEFB    " Bytes free",CR,LF,0,0
 
-SIGNON: DEFB    "Z80 BASIC Ver 4.7c-Bubble",CR,LF
+SIGNON: DEFB    "Z80 BASIC Ver 4.7c-Bubble (smbaker)",CR,LF
         DEFB    "Copyright ",40,"C",41
         DEFB    " 1978 by Microsoft",CR,LF
-        DEFB    "Bubble Memory Extensions by smbaker",CR,LF,0,0
+        DEFB    "Type 'HELP' for help",CR,LF,0,0
+
+MABOUT: DEFB    "Bubble Memory Extensions - smbaker (www.smbaker.com)",CR,LF
+        DEFB    "SCC/SIO Drivers - smbaker (www.smbaker.com)",CR,LF
+        DEFB    "RC2014 - MS Basic Loader",CR,LF
+        DEFB    "z88dk - feilipu",CR,LF,0,0
+
+MABRT:  DEFB    "CTRL-C Pressed. Aborting bubble auto/baud",CR,LF,0,0
+
+MBAUD:  DEFB    "Baud change will take effect on next reset",CR,LF,0,0
 
 MEMMSG: DEFB    "Memory top",0
 
 MBBAD:  DEFB    "Bubble Trouble! Error: ",0,0
-
-MBGOOD: DEFB    "Bubble Initialization Success!",CR,LF,CR,LF,0,0
 
 ; FUNCTION ADDRESS TABLE
 
@@ -371,7 +409,10 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'B'+80H,"NOAUTO"
         DEFB    'L'+80H,"EDON"
         DEFB    'L'+80H,"EDOFF"
-        DEFB    'N'+80H,"EW"    ; AAh
+        DEFB    'H'+80H,"ELP"
+        DEFB    'A'+80H,"BOUT"
+        DEFB    'B'+80H,"AUD"
+        DEFB    'N'+80H,"EW"    ; ADh
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -466,6 +507,9 @@ WORDTB: DEFW    PEND
         DEFW    BNOAUT
         DEFW    LEDON
         DEFW    LEDOFF
+        DEFW    HELP
+        DEFW    ABOUT
+        DEFW    BAUD
         DEFW    NEW
 
 ; RESERVED WORD TOKEN VALUES
@@ -477,27 +521,27 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0ABH        ; NEW
+        DEFC    ZNEW    =   0AEH        ; NEW
 
-        DEFC    ZTAB    =   0ACH        ; TAB
-        DEFC    ZTO     =   0ADH        ; TO
-        DEFC    ZFN     =   0AEH        ; FN
-        DEFC    ZSPC    =   0AFH        ; SPC
-        DEFC    ZTHEN   =   0B0H        ; THEN
-        DEFC    ZNOT    =   0B1H        ; NOT
-        DEFC    ZSTEP   =   0B2H        ; STEP
+        DEFC    ZTAB    =   0AFH        ; TAB
+        DEFC    ZTO     =   0B0H        ; TO
+        DEFC    ZFN     =   0B1H        ; FN
+        DEFC    ZSPC    =   0B2H        ; SPC
+        DEFC    ZTHEN   =   0B3H        ; THEN
+        DEFC    ZNOT    =   0B4H        ; NOT
+        DEFC    ZSTEP   =   0B5H        ; STEP
 
-        DEFC    ZAMP    =   0B3H        ; &
-        DEFC    ZPLUS   =   0B4H        ; +
-        DEFC    ZMINUS  =   0B5H        ; -
-        DEFC    ZTIMES  =   0B6H        ; *
-        DEFC    ZDIV    =   0B7H        ; /
-        DEFC    ZOR     =   0BAH        ; OR
-        DEFC    ZGTR    =   0BBH        ; >
-        DEFC    ZEQUAL  =   0BCH        ; =
-        DEFC    ZLTH    =   0BDH        ; <
-        DEFC    ZSGN    =   0BEH        ; SGN
-        DEFC    ZLEFT   =   0D5H        ; LEFT$
+        DEFC    ZAMP    =   0B6H        ; &
+        DEFC    ZPLUS   =   0B7H        ; +
+        DEFC    ZMINUS  =   0B8H        ; -
+        DEFC    ZTIMES  =   0B9H        ; *
+        DEFC    ZDIV    =   0CAH        ; /
+        DEFC    ZOR     =   0BDH        ; OR
+        DEFC    ZGTR    =   0BEH        ; >
+        DEFC    ZEQUAL  =   0BFH        ; =
+        DEFC    ZLTH    =   0C0H        ; <
+        DEFC    ZSGN    =   0C1H        ; SGN
+        DEFC    ZLEFT   =   0D8H        ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -681,6 +725,8 @@ OVERR:  LD      E,OV            ; ?OV Error
 TMERR:  LD      E,TM            ; ?TM Error
         DEFB    01H             ; Skip "LD E,HX"
 HXERR:  LD      E,HX            ; ?HEX Error
+        DEFB    01H             ; Skip "LD E,ID"
+IDERR:  LD      E,ID            ; ?HEX Error
 
 ERROR:  CALL    CLREG           ; Clear registers and stack
         LD      (CTLOFG),A      ; Enable output (A is 0)
@@ -4563,6 +4609,19 @@ HEXIT:  EX      DE,HL           ; Value into DE, Code string into HL
         POP     HL
         RET
 
+        ; Return size of program and header. The program starts at the
+        ; variable PROGND and ends at the address contained in that variable.
+
+CALCPS: LD      BC,(PROGND)
+        MOV     A,C
+        SUI     PROGND&0FFH
+        MOV     C,A
+        MOV     A,B
+        SBI     PROGND>>8
+        MOV     B,A
+        ;CALL    PHEXBC         ; For debugging length of program
+        RET
+
         ; Bubble Load and Save Routines. For simplicity sake, we save everything
         ; from PROGND to 0xFE00. We leave the last 256 bytes unsaved because that
         ; is where the stack is, and we don't want to clobber the stack while we're
@@ -4606,10 +4665,23 @@ BLOADA: LD      (BLDRUN),A      ; Save 'A', including the autorun bit
         CALL    CLRPTR          ; this will wipe everything, including the stack
         PUSH    DE              ; put return address back on the stack
 
+        LD      BC, 040H        ; Need to read in PROGND so we can CALCPGS. Might as well read 64 bytes.
+        LD      DE, PROGND
+        CALL    BREADC
+        CP      A,040H          ; 40 is success
+        JP      Z,BLDGD0
+        CP      A,042H          ; 42 is success with parity error
+        JP      Z,BLDGD0
+        LD      HL,MBBAD
+        CALL    PSHEXA
+        JP      BLOAD2          ; We're outta here.
+
+BLDGD0:
         ;CALL    PHEXSP          ; debugging that the stack is good
 
-        LD      BC, 0FFFFH-PROGND-0100H ; program memory minus 256 bytes
-        LD      DE, PROGND
+        CALL    CALCPS          ; calculate program and header size
+
+        LD      DE, PROGND      ; progam header starts at prognd
         CALL    BREADC
         CP      A,040H          ; 40 is success
         JP      Z,BLDGD
@@ -4647,8 +4719,9 @@ BSAVE:  CALL    GETINT          ; Get program number into A
         LD      A,0
         LD      (BARL),A        ; bubble lower address is 0
 
-        LD      BC, 0FFFFH-PROGND-0100H ; program memory minus 256 bytes
-        LD      DE, PROGND
+        CALL    CALCPS          ; calculate program and header size
+
+        LD      DE, PROGND      ; progam header starts at prognd
         CALL    BWRITEC
         CP      A,040H          ; 40 is success
         JP      Z,BSVGD
@@ -4676,6 +4749,8 @@ DEFSET: LD      A, DEFMAG1
         LD      (BBLVER), A
         LD      A, DEFAUTO      ; Set defaults prior to load
         LD      (BBLAUTO), A
+        LD      A, DEFBAUD
+        LD      (BBLBAUD), A
         RET
 
         ; Read settings from bubble
@@ -4733,8 +4808,6 @@ BNOAUT: LD      A,0FFH
         LD      (BBLAUTO), A
         JMP     BWRSET          ; Save settings
 
-BTEST:  RET
-
         ; Initialize the bubble memory. It has been shown that it often fails the first
         ; time with a 31 (error, timing, FIFO) code. So do it twice. This is called
         ; automatically at startup, though may also be invoked at runtime with BINIT.
@@ -4749,8 +4822,7 @@ BINIT:  PUSH    HL
         LD      HL,MBBAD        ; Point to message
         CALL    PSHEXA
         JMP     BINOUT
-BGOOD:  LD      HL,MBGOOD
-        CALL    PRS
+BGOOD:  
 BINOUT: POP     HL
         JP      BRDSET          ; Jump to read settings
 
@@ -4763,6 +4835,75 @@ LEDON:  OUT     (LEDPORT),A     ; Writing to LEDPORT turns it on
 
 LEDOFF: IN      A,(LEDPORT)     ; Reading from LEDPORT turns it off
         RET
+
+        ; Display help text
+
+HELP:   PUSH    HL
+        LXI     H,MBHELP
+        CALL    PRSLONG
+HELPDN: POP     HL
+        RET
+
+ABOUT:  PUSH    HL
+        LXI     H,SIGNON
+        CALL    PRSLONG
+        CALL    PRNTCRLF
+        LXI     H,MABOUT
+        CALL    PRSLONG
+        POP     HL
+        RET
+
+BAUD:   CALL    GETNUM          ; Get address
+        CALL    DEINT           ; Get integer -32768 to 32767 to DE
+        PUSH    HL
+        LD      HL,BTABLE
+        LD      C,0
+BAUDL:  LD      A,(HL)
+        INC     HL
+        CP      E
+        JP      NZ,BAUDN1
+        LD      A,(HL)
+        INC     HL
+        CP      D
+        JP      NZ,BAUDN2
+        MOV     A,C
+        LD      (BBLBAUD),A
+        CALL    BWRSET
+        LD      HL,MBAUD
+        CALL    PRS
+        JP      BAUDO
+BAUDN1:
+        INC     HL
+BAUDN2: LD      A,C
+        INC     C
+        CP      (BTABLEE-BTABLE)/2
+        JP      NZ,BAUDL
+        JP      IDERR
+BAUDO:  POP     HL
+        RET
+
+BTABLE:  
+        DEFW    300
+        DEFW    1200
+        DEFW    2400
+        DEFW    4800
+        DEFW    9600
+        DEFW    19200
+        DEFW    3840
+        DEFW    5760
+        DEFW    11520
+BTABLEE:
+
+INCLUDE "btest.inc"
+INCLUDE "bhelp.inc"
+
+PRSLONG:                        ; PRS can't seem to handle long strings
+PRSLLP: LD      A,(HL)          
+        ORA     A
+        RZ
+        CALL    OUTC
+        INC     HL
+        JMP     PRSLLP
 
         ; Print string in HL, hex value in A, and CRLF
 
@@ -4811,6 +4952,14 @@ PHEXHL: PUSH    PSW
         LD      A,H
         CALL    PHEXA
         LD      A,L
+        CALL    PHEXA
+        POP     PSW
+        RET
+
+PHEXBC: PUSH    PSW
+        LD      A,B
+        CALL    PHEXA
+        LD      A,C
         CALL    PHEXA
         POP     PSW
         RET
