@@ -227,6 +227,16 @@ INIT:   LD      HL,INITAB       ; Initialise workspace
         LD      (BUFFER+72+1),A ; Mark end of buffer
         LD      (PROGST),A      ; Initialise program area
 
+        ; Some delay seems to be necessary, otherwise the bubble
+        ; conntroller comes up flaky. 1000H was enough. I doubled
+        ; it to 2000H just to be sure.
+
+        LD      BC,2000H
+DLOOP:  DEC     BC
+        LD      A,B
+        OR      A,C
+        JP      NZ, DLOOP
+
         CALL    LEDOFF
         CALL    BINIT
 
