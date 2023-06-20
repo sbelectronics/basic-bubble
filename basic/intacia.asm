@@ -37,7 +37,45 @@
 ; INCLUDES SECTION
 ;
 
-INCLUDE "rc2014.inc"
+INCLUDE "board.inc"
+
+; ACIA 68B50 Register Mnemonics
+
+DEFC    SER_CTRL_ADDR   =   $80    ; Address of Control Register (write only)
+DEFC    SER_STATUS_ADDR =   $80    ; Address of Status Register (read only)
+DEFC    SER_DATA_ADDR   =   $81    ; Address of Data Register
+
+DEFC    SER_RESET       =   $03    ; Master Reset (issue before any other Control word)
+DEFC    SER_CLK_DIV_64  =   $02    ; Divide the Clock by 64 (default value)
+DEFC    SER_CLK_DIV_16  =   $01    ; Divide the Clock by 16
+DEFC    SER_CLK_DIV_01  =   $00    ; Divide the Clock by 1
+
+DEFC    SER_8O1         =   $1C    ; 8 Bits  Odd Parity 1 Stop Bit
+DEFC    SER_8E1         =   $18    ; 8 Bits Even Parity 1 Stop Bit
+DEFC    SER_8N1         =   $14    ; 8 Bits   No Parity 1 Stop Bit
+DEFC    SER_8N2         =   $10    ; 8 Bits   No Parity 2 Stop Bits
+DEFC    SER_7O1         =   $0C    ; 7 Bits  Odd Parity 1 Stop Bit
+DEFC    SER_7E1         =   $08    ; 7 Bits Even Parity 1 Stop Bit
+DEFC    SER_7O2         =   $04    ; 7 Bits  Odd Parity 2 Stop Bits
+DEFC    SER_7E2         =   $00    ; 7 Bits Even Parity 2 Stop Bits
+
+DEFC    SER_TDI_BRK     =   $60    ; _RTS low,  Transmitting Interrupt Disabled, BRK on Tx
+DEFC    SER_TDI_RTS1    =   $40    ; _RTS high, Transmitting Interrupt Disabled
+DEFC    SER_TEI_RTS0    =   $20    ; _RTS low,  Transmitting Interrupt Enabled
+DEFC    SER_TDI_RTS0    =   $00    ; _RTS low,  Transmitting Interrupt Disabled
+
+DEFC    SER_TEI_MASK    =   $60    ; Mask for the Tx Interrupt & RTS bits
+
+DEFC    SER_REI         =   $80    ; Receive Interrupt Enabled
+
+DEFC    SER_IRQ         =   $80    ; IRQ (Either Transmitted or Received Byte)
+DEFC    SER_PE          =   $40    ; Parity Error (Received Byte)
+DEFC    SER_OVRN        =   $20    ; Overrun (Received Byte
+DEFC    SER_FE          =   $10    ; Framing Error (Received Byte)
+DEFC    SER_CTS         =   $08    ; Clear To Send
+DEFC    SER_DCD         =   $04    ; Data Carrier Detect
+DEFC    SER_TDRE        =   $02    ; Transmit Data Register Empty
+DEFC    SER_RDRF        =   $01    ; Receive Data Register Full
 
 ;==============================================================================
 ;
