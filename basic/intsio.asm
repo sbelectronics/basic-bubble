@@ -295,6 +295,9 @@ PUBLIC  INIT
         LD (basicStarted),A
         JP $0240                    ; <<<< Start Basic COLD
 
+.BAUD
+        RET                         ; Move along, nothing to see here
+
 ;==============================================================================
 ;
 ; Z80 INTERRUPT VECTOR PROTOTYPE ASSIGNMENTS
@@ -312,7 +315,7 @@ DEFC    RST_00      =       INIT            ; Initialise, should never get here
 DEFC    RST_08      =       TXA             ; TX character, loop until space
 DEFC    RST_10      =       RXA             ; RX character, loop until byte
 ;       RST_18      =       RXA_CHK         ; Check receive buffer status, return # bytes available
-DEFC    RST_20      =       UFERR           ; User Function undefined (RST20)
+DEFC    RST_20      =       BAUD            ; User Function undefined (RST20)
 DEFC    RST_28      =       UFERR           ; User Function undefined (RST28)
 DEFC    RST_30      =       UFERR           ; User Function undefined (RST30)
 DEFC    INT_INT     =       sio_int        ; ACIA interrupt
