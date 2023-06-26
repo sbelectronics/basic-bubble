@@ -335,61 +335,17 @@ PUBLIC  INIT
         EI                          ; enable interrupts
 
 .START
-        LD HL,SIGNON1               ; sign-on message
-        CALL PRINT                  ; output string
-        LD A,(basicStarted)         ; check the BASIC STARTED flag
-        CP 'Y'                      ; to see if this is power-up
-        JP NZ,COLDSTART             ; if not BASIC started then always do cold start
-        LD HL,SIGNON2               ; cold/warm message
-        CALL PRINT                  ; output string
-.CORW
-        RST 10H
-        AND 11011111B               ; lower to uppercase
-        CP 'C'
-        JP NZ,CHECKWARM
-        RST 08H
-        LD A,CR
-        RST 08H
-        LD A,LF
-        RST 08H
+;        XXX smbaker removed signon and relocated to 'ABOUT' command
+
+;        XXX smbaker deleted warm-start option to make space
+
 .COLDSTART
         LD A,'Y'                    ; set the BASIC STARTED flag
         LD (basicStarted),A
-        JP $0240                    ; <<<< Start Basic COLD
+        JP $0240
 
-.CHECKWARM
-        CP 'W'
-        JP NZ,CORW
-        RST 08H
-        LD A,CR
-        RST 08H
-        LD A,LF
-        RST 08H
-.WARMSTART
-        JP $0243                    ; <<<< Start Basic WARM
-
-.PRINT
-        LD A,(HL)                   ; get character
-        OR A                        ; is it $00 ?
-        RET Z                       ; then RETurn on terminator
-        CALL TXA                    ; output character in A
-        INC HL                      ; next Character
-        JP PRINT                    ; continue until $00
-
-;==============================================================================
-;
-; STRINGS
-;
-SECTION init_strings                ; ORG $01F0
-
-.SIGNON1
-        DEFM    CR,LF
-        DEFM    "RC2014 - MS Basic Loader",CR,LF
-        DEFM    "z88dk - feilipu",CR,LF,0
-
-.SIGNON2
-        DEFM    CR,LF
-        DEFM    "Cold | Warm start (C|W) ? ",0
+.BAUD
+        RET                         ; Move along, nothing to see here
 
 ;==============================================================================
 ;
@@ -408,7 +364,7 @@ DEFC    RST_00      =       INIT            ; Initialise, should never get here
 DEFC    RST_08      =       TXA             ; TX character, loop until space
 DEFC    RST_10      =       RXA             ; RX character, loop until byte
 ;       RST_18      =       RXA_CHK         ; Check receive buffer status, return # bytes available
-DEFC    RST_20      =       UFERR           ; User Function undefined (RST20)
+DEFC    RST_20      =       BAUD            ; User Function undefined (RST20)
 DEFC    RST_28      =       UFERR           ; User Function undefined (RST28)
 DEFC    RST_30      =       UFERR           ; User Function undefined (RST30)
 DEFC    INT_INT     =       acia_int        ; ACIA interrupt
