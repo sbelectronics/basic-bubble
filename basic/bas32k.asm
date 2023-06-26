@@ -87,6 +87,7 @@
         ; XXX smbaker 8240-827f are my own temporaries
 
         DEFC    BLDRUN   =  8240H       ; Used by BLOAD internally to signal auto run
+        DEFC    BTCTRLC  =  8241H       ; CTRL-C was pressed on boot
 
         ; XXX smbaker 8280-82FF are settings area for bubble preferences
 
@@ -240,6 +241,26 @@ DLOOP:  DEC     BC
         CALL    LEDOFF
         CALL    BINIT
 
+        RST     18H             ; Check input status
+        OR      A               ; Key pressed?
+        JP      Z, NOCTRLC      ; Nope.
+        RST     10H             ; Read Key
+        CP      3               ; Is CTRL-C ?
+        JP      NZ, NOCTRLC     ; Nope.
+        LD      A,1
+        LD      (BTCTRLC),A
+        LD      HL,MABRT
+        CALL    PRS
+        JP      SKPBAUD
+NOCTRLC:
+        LD      A,0
+        LD      (BTCTRLC),A
+        LD      A,(BBLBAUD)
+        CP      A,0FFH          ; Set Baud Rate?
+        JZ      SKPBAUD         ; Nope.
+        RST     20H             ; Call set baud 
+SKPBAUD:
+
         JP      SKIPMS          ; XXX SMBAKER - the "Memory Size?" prompt annoys me
 MSIZE:  LD      HL,MEMMSG       ; Point to message
         CALL    PRS             ; Output "Memory size"
@@ -305,17 +326,11 @@ SETTOP: DEC     HL              ; Back one byte
 
         ; Give the user the option to CTRL-C the autoboot and/or baud
 
-        RST     18H             ; Check input status
-        OR      A               ; Key pressed?
-        JP      Z, CKBBL        ; Nope.
-        RST     10H             ; Read Key
-        CP      3               ; Is CTRL-C ?
-        JP      NZ, CKBBL       ; Nope.
-        LD      HL,MABRT
-        CALL    PRS
-        JP      PRNTOK
+        LD      A,(BTCTRLC)     ; Was ctrl-c pressed.
+        ORA     A               ; ... on boot?
+        JP      NZ, PRNTOK      ; Yup.
 
-CKBBL:  LD      A,(BBLAUTO)
+        LD      A,(BBLAUTO)
         CP      A,0FFH          ; Auto load and run?
         JZ      PRNTOK          ; Nope.
         OR      A,080H          ; Set the autorun bit

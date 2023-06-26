@@ -27,5 +27,12 @@ bhelp.inc: bhelp.txt
 	echo "MBHELP:" > bhelp.inc
 	python ./ttasm.py < bhelp.txt >> bhelp.inc
 
+quadbasic.rom:
+	dd if=/dev/zero ibs=1k count=64 | tr "\000" "\377" > quadbasic.rom
+	dd if=/home/smbaker/projects/pi/rc2014/NASCOM_BASIC_4.7/rc2014_NascomBasic32k/board_32k.rom of=quadbasic.rom conv=notrunc
+	dd if=board_32k_acia.rom bs=1024 seek=16 conv=notrunc of=quadbasic.rom conv=notrunc
+	dd if=board_32k_sio.rom bs=1024 seek=32 conv=notrunc of=quadbasic.rom conv=notrunc
+	dd if=board_32k_scc.rom bs=1024 seek=48 conv=notrunc of=quadbasic.rom conv=notrunc
+
 clean:
 	rm -f *.hex board_32k *.bin *.rom
