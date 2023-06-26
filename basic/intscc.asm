@@ -1,9 +1,9 @@
 INCLUDE "board.inc"
 
-DEFC SCCA_D = $80
-DEFC SCCA_C = $82
-DEFC SCCB_D = $81
-DEFC SCCB_C = $83
+DEFC SCCA_D = $83
+DEFC SCCA_C = $81
+DEFC SCCB_D = $82
+DEFC SCCB_C = $80
 DEFC R5_RTS_HIGH = $E8
 DEFC R5_RTS_LOW = $EA
 DEFC R1_RX_ALL_NOTX = $10               ; RX Interrupt on all receive chart
@@ -170,11 +170,13 @@ PUBLIC  INIT
 .INIT
         LD D,BEL                    ; prepare a BEL, to indicate normal boot
 
+        IN      A,(SCCA_C)          ; make sure pointer is reset
+        IN      A,(SCCA_C)
+
         LD      HL,SCCCMDS          ; Write all characters
-        LD      B,SCCCMDS-SCCCMDE
+        LD      B,SCCCMDE-SCCCMDS
         LD      C,SCCA_C
         OTIR
-
 
         LD A,D                      ; get byte to transmit
         OUT (SCCA_D),A              ; send it
@@ -253,13 +255,13 @@ PUBLIC  INIT
         RET
 
 .SCCCMDS:
-        ;DEFB   9, 0xc0         ; Reset
+        DEFB    9, 0xc0         ; Reset
         DEFB    3, 0xc0         ; Receiver disable
         DEFB    5, 0xe2         ; Transmiter disable
         DEFB    4, 0x44         ; x16, 1stop-bit, non-parity
         DEFB    3, 0xe0         ; Receive  8bit/char 
         DEFB    5, 0xe2         ; Send 8bit/char dtr rts
-        DEFB    9, 0x20         ; Software intack enable XXX smbaker
+        DEFB    9, 0x28         ; Software intack enable, Master int enable XXX smbaker
         DEFB    11, 0x50        ; BG use for receiver and transmiter
         DEFB    12, SCC_BRG_9600_73728MHz     ; see ../common/board.s
         DEFB    13, 00
