@@ -39,6 +39,9 @@
 
 INCLUDE "board.inc"
 
+; TODO - this should not be shared...
+PUBLIC serPort
+
 DEFC SIOA_D = $80
 DEFC SIOA_C = $82
 DEFC SIOB_D = $81
@@ -293,7 +296,7 @@ PUBLIC  INIT
 .COLDSTART
         LD A,'Y'                    ; set the BASIC STARTED flag
         LD (basicStarted),A
-        JP $0240                    ; <<<< Start Basic COLD
+        JP $0340                    ; <<<< Start Basic COLD
 
 .BAUD
         RET                         ; Move along, nothing to see here

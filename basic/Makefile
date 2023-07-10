@@ -34,5 +34,8 @@ quadbasic.rom:
 	dd if=board_32k_sio.rom bs=1024 seek=32 conv=notrunc of=quadbasic.rom conv=notrunc
 	dd if=board_32k_scc.rom bs=1024 seek=48 conv=notrunc of=quadbasic.rom conv=notrunc
 
+emulate:
+	eprom-emulator -mem 27256 -spi y -auto n board_32k_scc.rom  /dev/ttyUSB0
+
 clean:
 	rm -f *.hex board_32k *.bin *.rom

@@ -46,6 +46,8 @@
         EXTERN  BBLWRIT
         EXTERN  BBLREAD
 
+        EXTERN  serPort
+
         PUBLIC  PHEXA
         PUBLIC  PHEXHL
 
@@ -82,16 +84,22 @@
 
         PUBLIC WRKSPC                   ; Start of BASIC RAM
 
-        ; XXX smbaker 8200-823f reserved for bubble state in bblbas.asm
+        ; 8000-803F - serial state
+        ; 8040-807F - TX buffer port0
+        ; 8080-80BF - TX buffer port1
+        ; 8100-81FF - RX buffer port0
+        ; 8200-82FF - RX buffer port1
 
-        ; XXX smbaker 8240-827f are my own temporaries
+        ; 8300-833F - reserved for bubble state in bblbas.asm
 
-        DEFC    BLDRUN   =  8240H       ; Used by BLOAD internally to signal auto run
-        DEFC    BTCTRLC  =  8241H       ; CTRL-C was pressed on boot
+        ; 8340-837f - are bubble basic temporaries
 
-        ; XXX smbaker 8280-82FF are settings area for bubble preferences
+        DEFC    BLDRUN   =  8340H       ; Used by BLOAD internally to signal auto run
+        DEFC    BTCTRLC  =  8341H       ; CTRL-C was pressed on boot
 
-        DEFC    SETTINGS =  8280H
+        ; 8380-83FF -  settings area for bubble preferences
+
+        DEFC    SETTINGS =  8380H
 
         DEFC    BBLMAG1  =  SETTINGS
         DEFC    BBLMAG2  =  SETTINGS+001H
@@ -99,7 +107,9 @@
         DEFC    BBLMAG4  =  SETTINGS+003H
         DEFC    BBLVER   =  SETTINGS+004H
         DEFC    BBLAUTO  =  SETTINGS+005H    ; 0-3 = autorun program; 0xFF = no autorun
-        DEFC    BBLBAUD  =  SETTINGS+006H    ; baud rate divsor for SCC
+        DEFC    BBLBAUD  =  SETTINGS+006H    ; baud rate for SCC, port0
+        DEFC    BBLBAUD1 =  SETTINGS+007H    ; baud rate for SCC, port1
+        DEFC    CONPORT  =  SETTINGS+008H
 
         DEFC    DEFAUTO  =  0FFH        ; Default BBLAUTO = 0xFF
         DEFC    DEFMAG1  =  0FEH
@@ -108,8 +118,11 @@
         DEFC    DEFMAG4  =  0CEH
         DEFC    DEFVER   =  001H
         DEFC    DEFBAUD  =  BAUD9600
+        DEFC    DEFCONPORT = 01H
 
-        DEFC    WRKSPC  =   8300H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
+        ; 8400-XXXX - Basic workspace
+
+        DEFC    WRKSPC  =   8400H       ; <<<< BASIC Work space ** Rx buffer & Tx buffer located from 8080H **
                                         
         DEFC    USR     =   WRKSPC+003H ; "USR (x)" jump
         DEFC    OUTSUB  =   WRKSPC+006H ; "OUT p,n"
@@ -199,12 +212,12 @@
 
 ; BASIC CODE COMMENCES
 
-        ORG     0240H           ; <<<< Modified to allow for ACIA Tx/Rx on RST_38 (INT)
+        ORG     0340H           ; <<<< Modified to allow for ACIA Tx/Rx on RST_38 (INT)
 
-COLD:   JP      CSTART          ; Jump in for cold start (0x0240)
-WARM:   JP      WARMST          ; Jump in for warm start (0x0243)
+COLD:   JP      CSTART          ; Jump in for cold start (0x0340)
+WARM:   JP      WARMST          ; Jump in for warm start (0x0343)
 
-        DEFS    5               ; pad so DEINT is 0x024B, ABPASS is 0x024D
+        DEFS    5               ; pad so DEINT is 0x034B, ABPASS is 0x034D
 
         DEFW    DEINT           ; 0x024B Get integer -32768 to 32767
         DEFW    ABPASS          ; 0x024D Return integer in AB
@@ -249,17 +262,27 @@ DLOOP:  DEC     BC
         JP      NZ, NOCTRLC     ; Nope.
         LD      A,1
         LD      (BTCTRLC),A
+        LD      A,DEFCONPORT    ; Restore CONPORT to default
+        LD      (CONPORT),A     ; in case user is trying to recover a mistake
         LD      HL,MABRT
         CALL    PRS
-        JP      SKPBAUD
+        JP      SKPBAUD1
 NOCTRLC:
         LD      A,0
         LD      (BTCTRLC),A
         LD      A,(BBLBAUD)
-        CP      A,0FFH          ; Set Baud Rate?
+        CP      A,0FFH          ; Set Baud Rate on Port0 ?
         JZ      SKPBAUD         ; Nope.
         RST     20H             ; Call set baud 
 SKPBAUD:
+        LD      A,(BBLBAUD1)
+        CP      A,0FFH          ; Set Baud Rate on Port1?
+        JZ      SKPBAUD1        ; Nope.
+        OR      A,080H
+        RST     20H
+SKPBAUD1:
+        LD      A,(CONPORT)
+        LD      (serPort),A
 
         JP      SKIPMS          ; XXX SMBAKER - the "Memory Size?" prompt annoys me
 MSIZE:  LD      HL,MEMMSG       ; Point to message
@@ -356,6 +379,8 @@ MABRT:  DEFB    "CTRL-C Pressed. Aborting bubble auto/baud",CR,LF,0,0
 
 MBAUD:  DEFB    "Baud change will take effect on next reset",CR,LF,0,0
 
+MCONS:  DEFB    "Console change is immediate, and default for next boot",CR,LF,0,0
+
 MEMMSG: DEFB    "Memory top",0
 
 MBBAD:  DEFB    "Bubble Trouble! Error: ",0,0
@@ -437,7 +462,11 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'H'+80H,"ELP"
         DEFB    'A'+80H,"BOUT"
         DEFB    'B'+80H,"AUD"
-        DEFB    'N'+80H,"EW"    ; ADh
+        DEFB    'L'+80H,"BAUD"
+        DEFB    'L'+80H,"PRINT"
+        DEFB    'L'+80H,"LIST"
+        DEFB    'C'+80H,"ONSOLE"
+        DEFB    'N'+80H,"EW"    ; B0h
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -452,7 +481,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    '-'+80H
         DEFB    '*'+80H
         DEFB    '/'+80H
-        DEFB    '^'+80H        ; B7h
+        DEFB    '^'+80H        ; BAh
         DEFB    'A'+80H,"ND"
         DEFB    'O'+80H,"R"
         DEFB    '>'+80H
@@ -469,7 +498,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'S'+80H,"QR"
         DEFB    'R'+80H,"ND"
         DEFB    'L'+80H,"OG"
-        DEFB    'E'+80H,"XP"    ; C7h
+        DEFB    'E'+80H,"XP"    ; CAh
         DEFB    'C'+80H,"OS"
         DEFB    'S'+80H,"IN"
         DEFB    'T'+80H,"AN"
@@ -535,6 +564,10 @@ WORDTB: DEFW    PEND
         DEFW    HELP
         DEFW    ABOUT
         DEFW    BAUD
+        DEFW    LBAUD
+        DEFW    LPRINT
+        DEFW    LLIST
+        DEFW    CONSOL
         DEFW    NEW
 
 ; RESERVED WORD TOKEN VALUES
@@ -546,27 +579,27 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0AEH        ; NEW
+        DEFC    ZNEW    =   0B2H        ; NEW
 
-        DEFC    ZTAB    =   0AFH        ; TAB
-        DEFC    ZTO     =   0B0H        ; TO
-        DEFC    ZFN     =   0B1H        ; FN
-        DEFC    ZSPC    =   0B2H        ; SPC
-        DEFC    ZTHEN   =   0B3H        ; THEN
-        DEFC    ZNOT    =   0B4H        ; NOT
-        DEFC    ZSTEP   =   0B5H        ; STEP
+        DEFC    ZTAB    =   0B3H        ; TAB
+        DEFC    ZTO     =   0B4H        ; TO
+        DEFC    ZFN     =   0B5H        ; FN
+        DEFC    ZSPC    =   0B6H        ; SPC
+        DEFC    ZTHEN   =   0B7H        ; THEN
+        DEFC    ZNOT    =   0B8H        ; NOT
+        DEFC    ZSTEP   =   0B9H        ; STEP
 
-        DEFC    ZAMP    =   0B6H        ; &
-        DEFC    ZPLUS   =   0B7H        ; +
-        DEFC    ZMINUS  =   0B8H        ; -
-        DEFC    ZTIMES  =   0B9H        ; *
-        DEFC    ZDIV    =   0CAH        ; /
-        DEFC    ZOR     =   0BDH        ; OR
-        DEFC    ZGTR    =   0BEH        ; >
-        DEFC    ZEQUAL  =   0BFH        ; =
-        DEFC    ZLTH    =   0C0H        ; <
-        DEFC    ZSGN    =   0C1H        ; SGN
-        DEFC    ZLEFT   =   0D8H        ; LEFT$
+        DEFC    ZAMP    =   0BAH        ; &
+        DEFC    ZPLUS   =   0BBH        ; +
+        DEFC    ZMINUS  =   0BCH        ; -
+        DEFC    ZTIMES  =   0BDH        ; *
+        DEFC    ZDIV    =   0C0H        ; /
+        DEFC    ZOR     =   0C1H        ; OR
+        DEFC    ZGTR    =   0C2H        ; >
+        DEFC    ZEQUAL  =   0C3H        ; =
+        DEFC    ZLTH    =   0C4H        ; <
+        DEFC    ZSGN    =   0C5H        ; SGN
+        DEFC    ZLEFT   =   0ECH        ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -781,6 +814,8 @@ POPNOK: POP     BC              ; Drop address in input buffer
 PRNTOK: XOR     A               ; Output "Ok" and get command
         LD      (CTLOFG),A      ; Enable output
         CALL    STTLIN          ; Start new line
+        LD      A,(CONPORT)     ; In case we are in LLIST
+        LD      (serPort),A
         LD      HL,OKMSG        ; "Ok" message
         CALL    PRS             ; Output "Ok"
 GETCMD: LD      HL,-1           ; Flag direct mode
@@ -1201,6 +1236,13 @@ CLOTST: RST     10H             ; Get input character
         LD      (CTLOFG),A      ; Put it back
         XOR     A               ; Null character
         RET
+
+LLIST:  LD      A,02h
+        LD      (serPort),A
+        LD      DE,(LINESN)
+        LD      DE,7FFFh        ; Maximum lines counter
+        LD      (LINESN),DE     ; FIXME: This breaks LINESN
+        JP      LIST
 
 LIST:   CALL    ATOH            ; ASCII number to DE
         RET     NZ              ; Return if anything extra
@@ -1725,6 +1767,13 @@ IFGO:   CALL    TSTNUM          ; Make sure it's numeric
         CALL    GETCHR          ; Get next character
         JP      C,GOTO          ; Number - GOTO that line
         JP      IFJMP           ; Otherwise do statement
+
+LPRINT: LD      A,02h
+        LD      (serPort),A
+        CALL    PRINT
+        LD      A,(CONPORT)
+        LD      (serPort),A
+        RET
 
 MRPRNT: DEC     HL              ; DEC 'cos GETCHR INCs
         CALL    GETCHR          ; Get next character
@@ -4776,6 +4825,9 @@ DEFSET: LD      A, DEFMAG1
         LD      (BBLAUTO), A
         LD      A, DEFBAUD
         LD      (BBLBAUD), A
+        LD      (BBLBAUD1), A
+        LD      A, DEFCONPORT
+        LD      (CONPORT), A
         RET
 
         ; Read settings from bubble
@@ -4878,8 +4930,14 @@ ABOUT:  PUSH    HL
         POP     HL
         RET
 
-BAUD:   CALL    GETNUM          ; Get address
+LBAUD:  LD      B,1             ; B=1, set baud rate for port1
+        JP      BAUDS
+
+BAUD:   LD      B,0             ; B=0, set baud rate for port0
+BAUDS:  PUSH    BC
+        CALL    GETNUM          ; Get address
         CALL    DEINT           ; Get integer -32768 to 32767 to DE
+        POP     BC
         PUSH    HL
         LD      HL,BTABLE
         LD      C,0
@@ -4891,8 +4949,16 @@ BAUDL:  LD      A,(HL)
         INC     HL
         CP      D
         JP      NZ,BAUDN2
+        LD      A,B
+        CMP     1
+        JP      Z, BAUD1
         MOV     A,C
         LD      (BBLBAUD),A
+        JP      BAUD2
+BAUD1:
+        MOV     A,C
+        LD      (BBLBAUD1),A
+BAUD2:
         CALL    BWRSET
         LD      HL,MBAUD
         CALL    PRS
@@ -4918,6 +4984,18 @@ BTABLE:
         DEFW    5760
         DEFW    11520
 BTABLEE:
+
+CONSOL: CALL    GETNUM          ; Get address
+        CALL    DEINT           ; Get integer -32768 to 32767 to DE
+        LD      A,E
+        LD      (CONPORT),A
+        LD      (serPort),A
+        CALL    BWRSET
+        PUSH    HL
+        LD      HL,MCONS
+        CALL    PRS
+        POP     HL
+        RET
 
 INCLUDE "btest.inc"
 INCLUDE "bhelp.inc"
