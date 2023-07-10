@@ -111,6 +111,7 @@ DEFC    DEL             =    7FH     ; Delete
 ; VARIABLES
 ;
 
+; Port0
 DEFC    serRxInPtr      =     VECTOR_BASE+VECTOR_SIZE
 DEFC    serRxOutPtr     =     serRxInPtr+2
 DEFC    serTxInPtr      =     serRxOutPtr+2
@@ -119,16 +120,37 @@ DEFC    serRxBufUsed    =     serTxOutPtr+2
 DEFC    serTxBufUsed    =     serRxBufUsed+1
 DEFC    serControl      =     serTxBufUsed+1
 
-DEFC    basicStarted    =     serControl+1
+; Port1
+DEFC    ser1RxInPtr      =     serControl+1
+DEFC    ser1RxOutPtr     =     ser1RxInPtr+2
+DEFC    ser1TxInPtr      =     ser1RxOutPtr+2
+DEFC    ser1TxOutPtr     =     ser1TxInPtr+2
+DEFC    ser1RxBufUsed    =     ser1TxOutPtr+2
+DEFC    ser1TxBufUsed    =     ser1RxBufUsed+1
+DEFC    ser1Control      =     ser1TxBufUsed+1
+
+; For two-port drivers, which port to use
+DEFC    serPort          =     ser1Control+1
+
+DEFC    basicStarted    =      serPort+1
 
 ; I/O Tx Buffer must start on 0xnnn0 because we increment low byte to roll-over
 DEFC    BUFSTART_TX_IO  =     VECTOR_BASE-(VECTOR_BASE%$100) + $80
 
+; ... for port1
+DEFC    BUFSTART1_TX_IO  =     VECTOR_BASE-(VECTOR_BASE%$100) + $C0
+
 ; I/O Rx Buffer must start on 0xnn00 because we increment low byte to roll-over
 DEFC    BUFSTART_RX_IO  =     VECTOR_BASE-(VECTOR_BASE%$100) + $100
 
+; ... for port1
+DEFC    BUFSTART1_RX_IO  =     VECTOR_BASE-(VECTOR_BASE%$100) + $200
+
 DEFC    serTxBuf        =     BUFSTART_TX_IO
 DEFC    serRxBuf        =     BUFSTART_RX_IO
+
+DEFC    ser1TxBuf       =     BUFSTART1_TX_IO
+DEFC    ser1RxBuf       =     BUFSTART1_RX_IO
 
 ;==============================================================================
 

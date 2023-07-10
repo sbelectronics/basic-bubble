@@ -26,22 +26,22 @@ ORG         $0066
 SECTION     acia_interrupt
 ORG         $0070
 
-SECTION     acia_rxa
-ORG         $00D8
+;SECTION     acia_rxa
+;ORG         $00D8
 
-SECTION     acia_txa
-ORG         $0100
+;SECTION     acia_txa
+;ORG         $0100
 
-SECTION     init
-ORG         $0148
+;SECTION     init
+;ORG         $0148
 
-SECTION     init_strings
-ORG         $01F0
+;SECTION     init_strings
+;ORG         $01F0
 
 SECTION     bubble_lib
-ORG         $2800
+ORG         $3000
 
 SECTION     bubble_vars
-ORG         $8200
+ORG         $8300
 
 ;==============================================================================

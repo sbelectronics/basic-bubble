@@ -39,6 +39,9 @@
 
 INCLUDE "board.inc"
 
+; TODO - this should not be shared...
+PUBLIC serPort
+
 ; ACIA 68B50 Register Mnemonics
 
 DEFC    SER_CTRL_ADDR   =   $80    ; Address of Control Register (write only)
@@ -342,7 +345,7 @@ PUBLIC  INIT
 .COLDSTART
         LD A,'Y'                    ; set the BASIC STARTED flag
         LD (basicStarted),A
-        JP $0240
+        JP $0340
 
 .BAUD
         RET                         ; Move along, nothing to see here

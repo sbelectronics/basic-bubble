@@ -4,8 +4,25 @@ All the features of standard Nascom basic, plus the following commands:
 
 ABOUT. Display additional contributor info.
 
+** Primary Serial Port **
+
 BAUD <n>. Set baud rate, if SCC-equipped.
           <n> = 300, 1200, 2400, 4800, 9600, 19200, 3840, 5760, 11520
+
+** Secondary Serial Port **
+
+LBAUD <n>. Set baud rate, if SCC-equipped.
+          <n> = 300, 1200, 2400, 4800, 9600, 19200, 3840, 5760, 11520
+
+LLIST. List to secondary serial port.
+
+LPRINT. Print to secondary serial port.
+
+CONSOLE <n>. If n==1, console to primary serial port.
+             if n==2, console to secondary serial port.
+             If n==3, console to both serial ports.
+
+** Bubble Memory Storage and Diagnostics **
 
 BSAVE <n>. Save a program. <n> is a number from 0-3.
 
@@ -18,6 +35,8 @@ BNOAUTO. Turn off autorun.
 BINIT. Reinitialize the bubble memory.
 
 BTEST. Perform a destructive bubble memory test.
+
+** Misc Commands **
 
 LEDON. Turn on the LED.
 
