@@ -94,8 +94,10 @@ EXTERN          INT_INT, INT_NMI
                 JP      RST_10
                 NOP
 .RST_18_LBL
-                LD      A,(serRxBufUsed)    ; this is called each token,
-                RET                         ; so optimise it to here
+                JP      RST_18
+                NOP
+;                LD      A,(serRxBufUsed)    ; this is called each token,
+;                RET                         ; so optimise it to here
 .RST_20_LBL
                 JP      RST_20
                 NOP
