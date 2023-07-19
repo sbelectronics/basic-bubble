@@ -11,7 +11,7 @@
 ;   Reads the program bytes
 
 TLOAD:  PUSH    HL
-        LD      A,03H           ; Port to port1
+        LD      A,(PRNPORT)     ; Port to port1
         LD      (serPort),A
 
         ;       We need to make sure that we don't read memory over the top of
@@ -76,7 +76,7 @@ TLDLP:  RST     10H
         
 
 TSAVE:  PUSH    HL
-        LD      A,02H           ; Port to port1
+        LD      A,(PRNPORT)     ; Port to port1
         LD      (serPort),A
 
         LD      A,016H          ; Just like the H8, emit 32 020H to the tape

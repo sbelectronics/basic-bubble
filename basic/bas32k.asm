@@ -110,6 +110,7 @@
         DEFC    BBLBAUD  =  SETTINGS+006H    ; baud rate for SCC, port0
         DEFC    BBLBAUD1 =  SETTINGS+007H    ; baud rate for SCC, port1
         DEFC    CONPORT  =  SETTINGS+008H
+        DEFC    PRNPORT  =  SETTINGS+009H
 
         DEFC    DEFAUTO  =  0FFH        ; Default BBLAUTO = 0xFF
         DEFC    DEFMAG1  =  0FEH
@@ -119,6 +120,7 @@
         DEFC    DEFVER   =  001H
         DEFC    DEFBAUD  =  BAUD9600
         DEFC    DEFCONPORT = 01H
+        DEFC    DEFPRNPORT = 02H
 
         ; 8400-XXXX - Basic workspace
 
@@ -381,6 +383,8 @@ MBAUD:  DEFB    "Baud change will take effect on next reset",CR,LF,0,0
 
 MCONS:  DEFB    "Console change is immediate, and default for next boot",CR,LF,0,0
 
+MPRN:  DEFB     "Printer change is immediate, and default for next boot",CR,LF,0,0
+
 MEMMSG: DEFB    "Memory top",0
 
 MBBAD:  DEFB    "Bubble Trouble! Error: ",0,0
@@ -466,6 +470,7 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'L'+80H,"PRINT"
         DEFB    'L'+80H,"LIST"
         DEFB    'C'+80H,"ONSOLE"
+        DEFB    'L'+80H,"DEVICE"
         DEFB    'T'+80H,"LOAD"
         DEFB    'T'+80H,"SAVE"        
         DEFB    'N'+80H,"EW"    ; B4h
@@ -570,6 +575,7 @@ WORDTB: DEFW    PEND
         DEFW    LPRINT
         DEFW    LLIST
         DEFW    CONSOL
+        DEFW    PRINTR
         DEFW    TLOAD
         DEFW    TSAVE
         DEFW    NEW
@@ -583,7 +589,7 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0B4H        ; NEW
+        DEFC    ZNEW    =   0B5H        ; NEW
 
         DEFC    ZTAB    =   ZNEW+1      ; TAB
         DEFC    ZTO     =   ZTAB+1      ; TO
@@ -1243,7 +1249,7 @@ CLOTST: RST     10H             ; Get input character
         XOR     A               ; Null character
         RET
 
-LLIST:  LD      A,02h
+LLIST:  LD      A,(PRNPORT)
         LD      (serPort),A
         LD      DE,(LINESN)
         LD      DE,7FFFh        ; Maximum lines counter
@@ -1774,7 +1780,7 @@ IFGO:   CALL    TSTNUM          ; Make sure it's numeric
         JP      C,GOTO          ; Number - GOTO that line
         JP      IFJMP           ; Otherwise do statement
 
-LPRINT: LD      A,02h
+LPRINT: LD      A,(PRNPORT)
         LD      (serPort),A
         CALL    PRINT
         LD      A,(CONPORT)
@@ -4734,6 +4740,8 @@ DEFSET: LD      A, DEFMAG1
         LD      (BBLBAUD1), A
         LD      A, DEFCONPORT
         LD      (CONPORT), A
+        LD      A, DEFPRNPORT
+        LD      (PRNPORT), A
         RET
 
         ; BRDSET

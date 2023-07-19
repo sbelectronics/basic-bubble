@@ -72,3 +72,19 @@ CONSOL: CALL    GETNUM          ; Get address
         CALL    PRS
         POP     HL
         RET
+
+        ; PRINTER <n>
+        ;
+        ; Set printer mask. Bit0=port0, Bit1=port1
+
+PRINTR: CALL    GETNUM          ; Get address
+        CALL    DEINT           ; Get integer -32768 to 32767 to DE
+        LD      A,E
+        LD      (PRNPORT),A
+        CALL    BWRSET
+        PUSH    HL
+        LD      HL,MPRN
+        CALL    PRS
+        POP     HL
+        RET
+

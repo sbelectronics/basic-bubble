@@ -22,6 +22,10 @@ CONSOLE <n>. If n==1, console to primary serial port.
              if n==2, console to secondary serial port.
              If n==3, console to both serial ports.
 
+LDEVICE <n>. If n==1, printer to primary serial port.
+             if n==2, printer to secondary serial port.
+             If n==3, printer to both serial ports.
+
 ** Bubble Memory Storage and Diagnostics **
 
 BSAVE <n>. Save a program. <n> is a number from 0-3.
