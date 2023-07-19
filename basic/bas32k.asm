@@ -466,7 +466,9 @@ WORDS:  DEFB    'E'+80H,"ND"    ; 80h
         DEFB    'L'+80H,"PRINT"
         DEFB    'L'+80H,"LIST"
         DEFB    'C'+80H,"ONSOLE"
-        DEFB    'N'+80H,"EW"    ; B0h
+        DEFB    'T'+80H,"LOAD"
+        DEFB    'T'+80H,"SAVE"        
+        DEFB    'N'+80H,"EW"    ; B4h
 
         DEFB    'T'+80H,"AB("
         DEFB    'T'+80H,"O"
@@ -568,6 +570,8 @@ WORDTB: DEFW    PEND
         DEFW    LPRINT
         DEFW    LLIST
         DEFW    CONSOL
+        DEFW    TLOAD
+        DEFW    TSAVE
         DEFW    NEW
 
 ; RESERVED WORD TOKEN VALUES
@@ -579,27 +583,29 @@ WORDTB: DEFW    PEND
         DEFC    ZGOSUB  =   08CH        ; GOSUB
         DEFC    ZREM    =   08EH        ; REM
         DEFC    ZPRINT  =   09EH        ; PRINT
-        DEFC    ZNEW    =   0B2H        ; NEW
+        DEFC    ZNEW    =   0B4H        ; NEW
 
-        DEFC    ZTAB    =   0B3H        ; TAB
-        DEFC    ZTO     =   0B4H        ; TO
-        DEFC    ZFN     =   0B5H        ; FN
-        DEFC    ZSPC    =   0B6H        ; SPC
-        DEFC    ZTHEN   =   0B7H        ; THEN
-        DEFC    ZNOT    =   0B8H        ; NOT
-        DEFC    ZSTEP   =   0B9H        ; STEP
+        DEFC    ZTAB    =   ZNEW+1      ; TAB
+        DEFC    ZTO     =   ZTAB+1      ; TO
+        DEFC    ZFN     =   ZTO+1       ; FN
+        DEFC    ZSPC    =   ZFN+1       ; SPC
+        DEFC    ZTHEN   =   ZSPC+1      ; THEN
+        DEFC    ZNOT    =   ZTHEN+1     ; NOT
+        DEFC    ZSTEP   =   ZNOT+1      ; STEP
 
-        DEFC    ZAMP    =   0BAH        ; &
-        DEFC    ZPLUS   =   0BBH        ; +
-        DEFC    ZMINUS  =   0BCH        ; -
-        DEFC    ZTIMES  =   0BDH        ; *
-        DEFC    ZDIV    =   0C0H        ; /
-        DEFC    ZOR     =   0C1H        ; OR
-        DEFC    ZGTR    =   0C2H        ; >
-        DEFC    ZEQUAL  =   0C3H        ; =
-        DEFC    ZLTH    =   0C4H        ; <
-        DEFC    ZSGN    =   0C5H        ; SGN
-        DEFC    ZLEFT   =   0ECH        ; LEFT$
+        DEFC    ZAMP    =   ZSTEP+1     ; &
+        DEFC    ZPLUS   =   ZAMP+1      ; +
+        DEFC    ZMINUS  =   ZPLUS+1     ; -
+        DEFC    ZTIMES  =   ZMINUS+1    ; *
+        DEFC    ZDIV    =   ZTIMES+1    ; /
+        DEFC    ZEXP    =   ZDIV+1
+        DEFC    ZAND    =   ZEXP+1
+        DEFC    ZOR     =   ZAND+1      ; OR
+        DEFC    ZGTR    =   ZOR+1       ; >
+        DEFC    ZEQUAL  =   ZGTR+1      ; =
+        DEFC    ZLTH    =   ZEQUAL+1    ; <
+        DEFC    ZSGN    =   ZLTH+1      ; SGN
+        DEFC    ZLEFT   =   ZSGN+027H   ; LEFT$
 
 ; ARITHMETIC PRECEDENCE TABLE
 
@@ -4997,6 +5003,7 @@ CONSOL: CALL    GETNUM          ; Get address
         POP     HL
         RET
 
+INCLUDE "tape.inc"
 INCLUDE "btest.inc"
 INCLUDE "bhelp.inc"
 
