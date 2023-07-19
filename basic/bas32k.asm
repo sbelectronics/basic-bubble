@@ -4713,108 +4713,8 @@ CALCPS: LD      BC,(PROGND)
 
         ; For example, "BSAVE 0", "BLOAD 0"
 
-BLOAD:  CALL    GETINT          ; Get program number into A
-        RET     NZ
-BLOADA: LD      (BLDRUN),A      ; Save 'A', including the autorun bit
-        AND     A,07FH          ; Strip off the autorun bit
-        CP      A,4
-        JP      NC,OVERR        ; Only programs 0-3 are allowed
-
-        ;       SETUP FOR BUBBLE WRITE
-        ; 	BARL <- LSB OF BUBBLE ADDRESS
-        ; 	BARH <- MSB OF BUBBLE ADDRESS
-        ; 	BC <- NUMBER OF BYTES TO TRANSFER
-        ; 	DE <- STARTING RAM ADDRESS OF SOURCE
-
-        RLCA                    ; multiply program number by 2
-        LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
-        LD      A,0
-        LD      (BARL),A        ; bubble lower address is 0
-
-        ;       We need to make sure that we don't read memory over the top of
-        ;       the working stack. The stack gets pushed down if there is
-        ;       string space above it. So, reset top of memory, reset stringspace
-        ;       and then clear everything.
-
-        LD      HL,0FFFFH       ; Assume top of memory is at 0xFFFF
-        LD      DE,-50          ; 50 Bytes string space
-        LD      (LSTRAM),HL     ; Save last available RAM
-        ADD     HL,DE           ; Allocate string space
-        LD      (STRSPC),HL     ; Save string space
-        POP     DE              ; save return address in DE
-        CALL    CLRPTR          ; this will wipe everything, including the stack
-        PUSH    DE              ; put return address back on the stack
-
-        LD      BC, 040H        ; Need to read in PROGND so we can CALCPGS. Might as well read 64 bytes.
-        LD      DE, PROGND
-        CALL    BREADC
-        CP      A,040H          ; 40 is success
-        JP      Z,BLDGD0
-        CP      A,042H          ; 42 is success with parity error
-        JP      Z,BLDGD0
-        LD      HL,MBBAD
-        CALL    PSHEXA
-        JP      BLOAD2          ; We're outta here.
-
-BLDGD0:
-        ;CALL    PHEXSP          ; debugging that the stack is good
-
-        CALL    CALCPS          ; calculate program and header size
-
-        LD      DE, PROGND      ; progam header starts at prognd
-        CALL    BREADC
-        CP      A,040H          ; 40 is success
-        JP      Z,BLDGD
-        CP      A,042H          ; 42 is success with parity error
-        JP      Z,BLDGD
-        LD      HL,MBBAD
-        CALL    PSHEXA          ; Bad mojo
-        JP      BLOAD2
-
-BLDGD:  LD      A,(BLDRUN)      ; Check autorun flag
-        AND     A,080H
-        JP      Z,BLOAD2        ; not set -- don't autorun
-
-        LD      HL,TTYRUN       ; replace RINPUT with one that loads "RUN<null>"
-        LD      (RINPUT+1),HL
-        JP      SETPTR          ; Set pointers and return
-
-BLOAD2: CALL    PRNTOK          ; Printing OK before SetPTR is what nascom basic does
-        JP      SETPTR          ; Set pointers and return
-        
-
-BSAVE:  CALL    GETINT          ; Get program number into A
-        RET     NZ
-        CP      A,4
-        JP      NC,OVERR        ; Only programs 0-3 are allowed
-        PUSH    HL
-
-        ;       SETUP FOR BUBBLE WRITE
-        ; 	BARL <- LSB OF BUBBLE ADDRESS
-        ; 	BARH <- MSB OF BUBBLE ADDRESS
-        ; 	BC <- NUMBER OF BYTES TO TRANSFER
-        ; 	DE <- STARTING RAM ADDRESS OF SOURCE
-        RLCA                    ; multiply program number by 2
-        LD      (BARH),A        ; store prgnum*2 to BARH = 16K offset into bubblespace
-        LD      A,0
-        LD      (BARL),A        ; bubble lower address is 0
-
-        CALL    CALCPS          ; calculate program and header size
-
-        LD      DE, PROGND      ; progam header starts at prognd
-        CALL    BWRITEC
-        CP      A,040H          ; 40 is success
-        JP      Z,BSVGD
-        CP      A,042H          ; 42 is success with parity error
-        JP      Z,BSVGD
-        LD      HL,MBBAD
-        CALL    PSHEXA          ; Bad mojo
-        JP      BSAVE2
-
-BSVGD:
-BSAVE2: POP     HL
-        RET
-
+        ; DEFSET
+        ;
         ; Load default settings
 
 DEFSET: LD      A, DEFMAG1
@@ -4836,6 +4736,8 @@ DEFSET: LD      A, DEFMAG1
         LD      (CONPORT), A
         RET
 
+        ; BRDSET
+        ;
         ; Read settings from bubble
 
 BRDSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last one.
@@ -4866,6 +4768,8 @@ BRDSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last on
         JNZ     DEFSET
         RET
 
+        ; BWRSET
+        ;
         ; Write settings from bubble
 
 BWRSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last one.
@@ -4880,45 +4784,22 @@ BWRSET: LD      A,007H          ; Settings are on bubble page 0x7FF. The last on
         POP     HL
         RET
 
-BAUTO:  CALL    GETINT          ; Get program number into A
-        RET     NZ
-        CP      A,4
-        JP      NC,OVERR        ; Only programs 0-3 are allowed
-        LD      (BBLAUTO), A
-        JMP     BWRSET          ; Save settings
-
-BNOAUT: LD      A,0FFH
-        LD      (BBLAUTO), A
-        JMP     BWRSET          ; Save settings
-
-        ; Initialize the bubble memory. It has been shown that it often fails the first
-        ; time with a 31 (error, timing, FIFO) code. So do it twice. This is called
-        ; automatically at startup, though may also be invoked at runtime with BINIT.
-
-BINIT:  PUSH    HL
-        CALL    BBLINIT
-        CPI     040H
-        JZ      BGOOD
-        CALL    BBLINIT         ; Try once more
-        CPI     040H
-        JZ      BGOOD
-        LD      HL,MBBAD        ; Point to message
-        CALL    PSHEXA
-        JMP     BINOUT
-BGOOD:  
-BINOUT: POP     HL
-        JP      BRDSET          ; Jump to read settings
-
+        ; LEDON
+        ;
         ; Turn on the LED, if we are so equipped
 
 LEDON:  OUT     (LEDPORT),A     ; Writing to LEDPORT turns it on
         RET
 
+        ; LEDOFF
+        ;
         ; Turn off the LED, if we are so equipped
 
 LEDOFF: IN      A,(LEDPORT)     ; Reading from LEDPORT turns it off
         RET
 
+        ; HELP
+        ;
         ; Display help text
 
 HELP:   PUSH    HL
@@ -4926,6 +4807,10 @@ HELP:   PUSH    HL
         CALL    PRSLONG
 HELPDN: POP     HL
         RET
+
+        ; ABORT
+        ;
+        ; Display about text
 
 ABOUT:  PUSH    HL
         LXI     H,SIGNON
@@ -4936,73 +4821,8 @@ ABOUT:  PUSH    HL
         POP     HL
         RET
 
-LBAUD:  LD      B,1             ; B=1, set baud rate for port1
-        JP      BAUDS
-
-BAUD:   LD      B,0             ; B=0, set baud rate for port0
-BAUDS:  PUSH    BC
-        CALL    GETNUM          ; Get address
-        CALL    DEINT           ; Get integer -32768 to 32767 to DE
-        POP     BC
-        PUSH    HL
-        LD      HL,BTABLE
-        LD      C,0
-BAUDL:  LD      A,(HL)
-        INC     HL
-        CP      E
-        JP      NZ,BAUDN1
-        LD      A,(HL)
-        INC     HL
-        CP      D
-        JP      NZ,BAUDN2
-        LD      A,B
-        CMP     1
-        JP      Z, BAUD1
-        MOV     A,C
-        LD      (BBLBAUD),A
-        JP      BAUD2
-BAUD1:
-        MOV     A,C
-        LD      (BBLBAUD1),A
-BAUD2:
-        CALL    BWRSET
-        LD      HL,MBAUD
-        CALL    PRS
-        JP      BAUDO
-BAUDN1:
-        INC     HL
-BAUDN2: LD      A,C
-        INC     C
-        CP      (BTABLEE-BTABLE)/2
-        JP      NZ,BAUDL
-        JP      IDERR
-BAUDO:  POP     HL
-        RET
-
-BTABLE:  
-        DEFW    300
-        DEFW    1200
-        DEFW    2400
-        DEFW    4800
-        DEFW    9600
-        DEFW    19200
-        DEFW    3840
-        DEFW    5760
-        DEFW    11520
-BTABLEE:
-
-CONSOL: CALL    GETNUM          ; Get address
-        CALL    DEINT           ; Get integer -32768 to 32767 to DE
-        LD      A,E
-        LD      (CONPORT),A
-        LD      (serPort),A
-        CALL    BWRSET
-        PUSH    HL
-        LD      HL,MCONS
-        CALL    PRS
-        POP     HL
-        RET
-
+INCLUDE "portstmt.inc"
+INCLUDE "bblstmt.inc"
 INCLUDE "tape.inc"
 INCLUDE "btest.inc"
 INCLUDE "bhelp.inc"
