@@ -42,5 +42,11 @@ LEDON. Turn on the LED.
 
 LEDOFF. Turn off the LED.
 
+** Tape Commands **
+
+TSAVE. Write program to port1.
+
+TLOAD. Read program from port1.
+
 Pressing CTRL-C during boot will abort any saved BAUTO commands and
 revert baud rate to maximum.
