@@ -4823,7 +4823,7 @@ ABOUT:  PUSH    HL
 
 INCLUDE "portstmt.inc"
 INCLUDE "bblstmt.inc"
-INCLUDE "tape.inc"
+INCLUDE "tapestmt.inc"
 INCLUDE "btest.inc"
 INCLUDE "bhelp.inc"
 
